@@ -5,16 +5,25 @@
       "players": {
         ".read": "auth != null",
         "$pid": {
-          ".write": "auth != null && ($pid === auth.uid || $pid.beginsWith(auth.uid + '_'))",
+          ".write": "auth != null && $ch.matches(/^c[1-5]$/) && $pid.beginsWith(auth.uid + '_')",
           ".validate": "newData.hasChildren(['n','x','y','t'])",
           "n": { ".validate": "newData.isString() && newData.val().length <= 8" },
           "x": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000" },
           "y": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 800" },
           "t": { ".validate": "newData.isNumber()" },
-          "$other": { ".validate": true }
+          "j": { ".validate": "newData.isNumber()" },
+          "s": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 4" },
+          "d": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3" },
+          "e": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 8" },
+          "et": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
         }
       },
-      "raid": { ".read": "auth != null", ".write": "auth != null" }
+      "raid": {
+        ".read": "auth != null",
+        ".write": "auth != null && $ch.matches(/^c[1-5]$/)",
+        "st": { ".validate": "newData.isString() && newData.val().matches(/^(lobby|p1|p2|p3|won|lost)$/)" }
+      }
     } }
   }
 }
