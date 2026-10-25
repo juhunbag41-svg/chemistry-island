@@ -2,7 +2,8 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
 <title>화학 섬 이야기</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#1b2a2e;font-family:"Malgun Gothic","Nanum Gothic",sans-serif;user-select:none;color:#4a3326}
@@ -53,6 +54,60 @@
   #start h1{font-size:56px;margin:0 0 6px;color:#fff;text-shadow:3px 3px 0 #e8802a,-2px -2px 0 #8a4a10,0 4px 0 #8a4a10}
   #start p{font-size:15px;line-height:1.7;margin:3px}
   #start .btn{font-size:21px;padding:8px 36px;margin-top:16px}
+  /* ===== 모바일 인터페이스: html.mob(모바일 레이아웃) / html.touch(터치 조작 UI) 일 때만 적용된다. PC 화면은 그대로다. ===== */
+  html,body{overscroll-behavior:none}
+  #touch,#mobcap,#mobmenu{display:none}
+  .touch.playing #touch{display:block}
+  .mob #game{position:fixed!important;left:0!important;top:0!important;width:var(--vw)!important;height:var(--vh)!important;transform:none!important;touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  .mob #cv{position:absolute;left:0;top:0;max-width:none}
+  .mob #hint{display:none}
+  .mob .pill{font-size:12px;padding:2px 10px;border-width:2px}
+  .mob #coin{left:max(8px,env(safe-area-inset-left));top:max(6px,env(safe-area-inset-top))}
+  .mob #clock{right:max(8px,env(safe-area-inset-right));top:max(6px,env(safe-area-inset-top))}
+  .mob #track{right:max(8px,env(safe-area-inset-right));top:calc(max(6px,env(safe-area-inset-top)) + 30px);max-width:min(58vw,300px);font-size:12px}
+  .mob #toast{top:calc(max(6px,env(safe-area-inset-top)) + 34px);max-width:88vw;font-size:13px;z-index:40}
+  .mob #dlg{left:8px;right:8px;bottom:calc(var(--ctrl) + 8px);padding:16px 16px 10px;z-index:20;touch-action:manipulation}
+  .mob #dtxt{font-size:16px;line-height:1.55;min-height:44px;max-height:calc(var(--vh) - var(--ctrl) - 150px);overflow-y:auto;overscroll-behavior:contain}
+  .mob #dopts{max-height:calc(var(--vh) - var(--ctrl) - 150px);overflow-y:auto;overscroll-behavior:contain}
+  .mob .opt{font-size:16px;padding:10px 12px;margin:4px 0}
+  .mob #win{z-index:30;width:min(calc(var(--vw) - 12px),640px)!important;max-height:calc(var(--vh) - 12px)}
+  .mob #wb{max-height:calc(var(--vh) - 12px - 58px);overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;font-size:15px;padding:10px 12px}
+  .mob #whd{padding:6px 10px 6px 14px}
+  .mob #wx{min-width:46px;min-height:46px;font-size:20px}
+  .mob .btn{min-height:44px;font-size:15px;padding:6px 14px}
+  .mob .btn.sm{min-width:46px;padding:6px 12px}
+  .mob .grid{grid-template-columns:repeat(4,1fr)}
+  .mob .cell{padding:8px 2px}
+  .mob .rec{flex-wrap:wrap}
+  .mob input[type=range]{width:100%;min-width:140px;height:34px}
+  .mob #wb canvas{max-width:100%;height:auto}
+  .mob .bar span{width:76px}.mob .bar b{width:96px;font-size:12px}
+  .mob #start h1{font-size:36px}.mob #start p{font-size:13px;padding:0 14px}.mob #start .btn{font-size:20px;min-height:52px;padding:8px 30px}
+  .portrait{--pad:150px;--act:96px}
+  .landscape{--pad:min(34vh,140px);--act:min(24vh,92px)}
+  #touch{position:absolute;inset:0;z-index:10;pointer-events:none;touch-action:none}
+  .touch.portrait.playing #touch::before{content:"";position:absolute;left:0;right:0;bottom:0;height:var(--ctrl);background:linear-gradient(#26343a,#1b2a2e);border-top:3px solid #9b6b43}
+  #touch .ctl{position:absolute;pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;transition:transform .05s}
+  #touch .ctl.down{transform:scale(.93);filter:brightness(1.12)}
+  #pad{width:var(--pad);height:var(--pad);border-radius:50%;background:rgba(255,251,234,.2);border:3px solid rgba(255,251,234,.55);left:calc(max(14px,env(safe-area-inset-left)) + 6px);bottom:calc(max(18px,env(safe-area-inset-bottom)) + 14px)}
+  .landscape #pad{opacity:.8}
+  #pad i{position:absolute;font-style:normal;font-size:22px;color:rgba(255,255,255,.75);width:30px;height:30px;line-height:30px;text-align:center;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+  #pad i.on{color:#ffd36b}
+  #pad i[data-d=U]{left:calc(50% - 15px);top:4px}#pad i[data-d=D]{left:calc(50% - 15px);bottom:4px}
+  #pad i[data-d=L]{left:4px;top:calc(50% - 15px)}#pad i[data-d=R]{right:4px;top:calc(50% - 15px)}
+  #padknob{position:absolute;left:calc(50% - 22px);top:calc(50% - 22px);width:44px;height:44px;border-radius:50%;background:rgba(255,211,107,.8);border:3px solid #b8832a;pointer-events:none}
+  #bAct{width:var(--act);height:var(--act);border-radius:50%;background:rgba(255,211,107,.9);border:4px solid #b8832a;color:#6a3a10;font:bold 20px/var(--act) "Malgun Gothic",sans-serif;text-align:center;right:calc(max(16px,env(safe-area-inset-right)) + 8px);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 14px)}
+  #bBag,#bMenu{width:60px;height:60px;border-radius:50%;background:rgba(255,251,234,.9);border:3px solid #9b6b43;color:#4a3326;font-size:22px;line-height:34px;text-align:center}
+  #bBag small,#bMenu small{display:block;font-size:11px;line-height:12px;margin-top:-2px}
+  #bBag{right:calc(max(16px,env(safe-area-inset-right)) + var(--act) + 22px);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 14px)}
+  #bMenu{right:calc(max(16px,env(safe-area-inset-right)) + 8px);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 14px + var(--act) + 14px)}
+  .landscape.ui-busy #touch .ctl{opacity:0;pointer-events:none}
+  .touch.playing #mobcap:not(:empty){display:block}
+  #mobcap{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--ctrl) + 12px);z-index:11;pointer-events:none;background:rgba(255,251,234,.94);border:3px solid #9b6b43;border-radius:14px;padding:3px 12px;font:bold 13px "Malgun Gothic",sans-serif;white-space:nowrap;max-width:80vw;overflow:hidden;text-overflow:ellipsis}
+  .ui-busy #mobcap{display:none!important}
+  #mobmenu{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:25;width:min(78vw,300px);background:#fffbea;border:4px solid #9b6b43;border-radius:18px;padding:12px;box-shadow:0 5px 0 rgba(0,0,0,.35)}
+  #mobmenu.open{display:block}
+  #mobmenu .btn{display:block;width:100%;margin:6px 0;min-height:50px;font-size:17px;text-align:left}
 </style>
 </head>
 <body>
@@ -71,6 +126,21 @@
     <p>이동 방향키/WASD · 상호작용 E(Space) · 보관함 I · 일지 Q · 지도 M</p>
     <button class="btn" id="bnew">새로 시작</button>
     <button class="btn" id="bcont" style="display:none">이어하기</button>
+  </div>
+  <div id="touch">
+    <div id="pad" class="ctl"><i data-d="U">▲</i><i data-d="D">▼</i><i data-d="L">◀</i><i data-d="R">▶</i><b id="padknob"></b></div>
+    <div id="bAct" class="ctl">행동</div>
+    <div id="bBag" class="ctl">🎒<small>가방</small></div>
+    <div id="bMenu" class="ctl">☰<small>메뉴</small></div>
+  </div>
+  <div id="mobcap"></div>
+  <div id="mobmenu">
+    <button class="btn" data-m="KeyQ">📖 연구 일지 (퀘스트·도감)</button>
+    <button class="btn" data-m="KeyM">🗺️ 섬 지도</button>
+    <button class="btn" data-m="KeyH">❓ 도움말</button>
+    <button class="btn" data-m="save">💾 저장하기</button>
+    <button class="btn" data-m="full">⛶ 전체 화면 켜기/끄기</button>
+    <button class="btn" data-m="close">닫기</button>
   </div>
 </div>
 
@@ -1476,6 +1546,110 @@ $("bnew").onclick=()=>startGame(false);
 try{if(localStorage.getItem(SAVE)){$("bcont").style.display="inline-block";$("bcont").onclick=()=>startGame(loadSave())}}catch(e){}
 P.x=20*16+8;P.y=19*16+8;D.x=13*16+8;D.y=23*16+12;camSnap();
 requestAnimationFrame(frame);
+</script>
+<script>
+/* ===== 모바일 인터페이스 계층 =====
+   게임 로직(이동·상호작용·충돌·저장)은 건드리지 않는다. 기존 입력 경로만 호출한다.
+   - 이동: 기존 keys 객체에 방향키 값을 쓴다(movePlayer 가 그대로 읽음). 실제 키보드 상태와 합쳐서 충돌을 막는다.
+   - 행동·가방·메뉴: window 의 기존 keydown 핸들러에 KeyboardEvent 를 보낸다(E, I, Q, M, H).
+   - 화면: html.mob 클래스로 레이아웃만 바꾸고, 캔버스를 플레이어 중심으로 확대·이동시킨다. */
+(()=>{
+"use strict";
+const root=document.documentElement,game=document.getElementById("game"),cv=document.getElementById("cv");
+const pad=document.getElementById("pad"),knob=document.getElementById("padknob"),bAct=document.getElementById("bAct"),bBag=document.getElementById("bBag"),bMenu=document.getElementById("bMenu");
+const cap=document.getElementById("mobcap"),menu=document.getElementById("mobmenu"),force=new URLSearchParams(location.search).get("mobile");
+const st={mob:false,ctl:false,z:1,aw:0,ah:0};let lastT="",lastCap="";
+const kb={};
+addEventListener("keydown",e=>{kb[e.code]=true},true);addEventListener("keyup",e=>{kb[e.code]=false},true);
+const touchCap=()=>(navigator.maxTouchPoints||0)>0||"ontouchstart" in window||matchMedia("(pointer:coarse)").matches;
+function decide(){
+  const big=Math.max(innerWidth,innerHeight)>1366;
+  if(force==="1"){st.mob=st.ctl=true}else if(force==="0"){st.mob=st.ctl=false}
+  else{st.ctl=touchCap()&&!big;st.mob=st.ctl||innerWidth<=700}
+}
+const fire=(type,code)=>dispatchEvent(new KeyboardEvent(type,{code,key:code.replace("Key","").toLowerCase(),bubbles:true,cancelable:true}));
+// ---- 방향 패드
+const DIRS={L:"ArrowLeft",R:"ArrowRight",U:"ArrowUp",D:"ArrowDown"},flags={L:0,R:0,U:0,D:0},arrows={};
+pad.querySelectorAll("i").forEach(i=>arrows[i.dataset.d]=i);
+function applyFlags(){for(const k in DIRS){keys[DIRS[k]]=!!flags[k]||!!kb[DIRS[k]];arrows[k].classList.toggle("on",!!flags[k])}}
+let padId=null;
+function padRelease(){padId=null;flags.L=flags.R=flags.U=flags.D=0;knob.style.transform="";pad.classList.remove("down");applyFlags()}
+function padMove(e){
+  const r=pad.getBoundingClientRect(),R=r.width/2,dx=e.clientX-(r.left+R),dy=e.clientY-(r.top+R),m=Math.hypot(dx,dy);
+  if(m<R*.2){flags.L=flags.R=flags.U=flags.D=0}
+  else{flags.L=dx<0&&-dx>m*.38;flags.R=dx>0&&dx>m*.38;flags.U=dy<0&&-dy>m*.38;flags.D=dy>0&&dy>m*.38}
+  const k=m?Math.min(m,R*.55)/m:0;knob.style.transform=`translate(${dx*k}px,${dy*k}px)`;applyFlags();
+}
+pad.addEventListener("pointerdown",e=>{if(padId!==null)return;padId=e.pointerId;try{pad.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault();padMove(e)});
+pad.addEventListener("pointermove",e=>{if(e.pointerId===padId)padMove(e)});
+for(const t of["pointerup","pointercancel","lostpointercapture"])pad.addEventListener(t,e=>{if(e.pointerId===padId)padRelease()});
+pad.addEventListener("pointerleave",e=>{if(e.pointerId===padId&&!(pad.hasPointerCapture&&pad.hasPointerCapture(e.pointerId)))padRelease()});
+// ---- 누르는 동안만 동작하는 버튼(행동·가방·메뉴): 포인터별로 구분하므로 이동 손가락과 동시에 쓸 수 있다
+function bind(el,down,up){
+  let id=null;
+  el.addEventListener("pointerdown",e=>{if(id!==null)return;id=e.pointerId;try{el.setPointerCapture(id)}catch(_){}el.classList.add("down");e.preventDefault();down&&down()});
+  const end=e=>{if(e.pointerId!==id)return;id=null;el.classList.remove("down");up&&up()};
+  for(const t of["pointerup","pointercancel","lostpointercapture"])el.addEventListener(t,end);
+  el.addEventListener("pointerleave",e=>{if(e.pointerId===id&&!(el.hasPointerCapture&&el.hasPointerCapture(id)))end(e)});
+  return()=>{if(id!==null){id=null;el.classList.remove("down");up&&up()}};
+}
+const relAct=bind(bAct,()=>fire("keydown","KeyE"),()=>fire("keyup","KeyE"));
+const relBag=bind(bBag,()=>{fire("keydown","KeyI");fire("keyup","KeyI")});
+const relMenu=bind(bMenu,()=>menu.classList.toggle("open"));
+menu.addEventListener("click",e=>{
+  const b=e.target.closest("[data-m]");if(!b)return;const m=b.dataset.m;
+  if(m==="close"){}
+  else if(m==="save"){if(started){const ok=save();toast(ok?"💾 저장했어요.":"⚠️ 이 환경에서는 저장이 막혀 있어요.")}}
+  else if(m==="full"){try{(document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()).catch(()=>{})}catch(_){}}
+  else{fire("keydown",m);fire("keyup",m)}
+  menu.classList.remove("open");
+});
+// 대화창을 눌러 넘기기(선택지는 기존대로 직접 누른다)
+document.getElementById("dlg").addEventListener("click",e=>{if(!st.mob||e.target.closest(".opt"))return;if(dl&&!dl.opts){fire("keydown","KeyE");fire("keyup","KeyE")}});
+// ---- 입력이 남지 않도록 하는 안전장치
+function releaseAll(){padRelease();relAct();relBag();relMenu()}
+addEventListener("blur",releaseAll);addEventListener("pagehide",releaseAll);
+document.addEventListener("visibilitychange",()=>{if(document.hidden)releaseAll()});
+addEventListener("pointerup",e=>{if(e.pointerId===padId)padRelease()},true);
+addEventListener("pointercancel",e=>{if(e.pointerId===padId)padRelease()},true);
+// ---- 브라우저 기본 동작 억제(조작 영역에 한정): 확대·길게 누르기 메뉴·스크롤
+document.addEventListener("gesturestart",e=>e.preventDefault());
+game.addEventListener("touchmove",e=>{if(!st.mob)return;if(e.target.closest&&e.target.closest("#wb"))return;e.preventDefault()},{passive:false});
+game.addEventListener("contextmenu",e=>{if(st.mob)e.preventDefault()});
+// ---- 레이아웃
+function place(){
+  if(!st.aw)return;
+  const z=st.z,W=960*z,H=600*z,px=(P.x-cam.x)*3*z,py=(P.y-cam.y)*3*z;
+  const tx=Math.min(0,Math.max(st.aw-W,st.aw/2-px)),ty=Math.min(0,Math.max(st.ah-H,st.ah/2-py));
+  const s=`translate(${Math.round(tx)}px,${Math.round(ty)}px)`;if(s!==lastT){cv.style.transform=s;lastT=s}
+}
+function layout(){
+  decide();
+  const vv=window.visualViewport,vw=Math.round(vv?vv.width:innerWidth),vh=Math.round(vv?vv.height:innerHeight),portrait=vh>vw;
+  root.classList.toggle("mob",st.mob);root.classList.toggle("touch",st.ctl);
+  root.classList.toggle("portrait",st.mob&&portrait);root.classList.toggle("landscape",st.mob&&!portrait);
+  root.style.setProperty("--vw",vw+"px");root.style.setProperty("--vh",vh+"px");
+  const ctrl=st.mob&&st.ctl&&portrait?Math.round(Math.min(230,Math.max(176,vh*.27))):0;
+  root.style.setProperty("--ctrl",ctrl+"px");
+  releaseAll();menu.classList.remove("open");
+  if(!st.mob){cv.style.width="";cv.style.height="";cv.style.transform="";lastT="";st.aw=0;return}
+  st.aw=vw;st.ah=vh-ctrl;st.z=Math.max(vw/960,st.ah/600,.83);
+  cv.style.width=Math.round(960*st.z)+"px";cv.style.height=Math.round(600*st.z)+"px";lastT="";place();
+}
+addEventListener("resize",layout);addEventListener("orientationchange",()=>setTimeout(layout,120));
+if(window.visualViewport)visualViewport.addEventListener("resize",layout);
+layout();
+// ---- 매 프레임: 플레이어 중심으로 캔버스 이동, 현재 행동 대상 표시, 대화·창이 열려 있으면 가로 화면의 조작 UI 숨김
+(function loop(){
+  if(st.mob)place();
+  const busy=!!(dl||curWin);
+  root.classList.toggle("ui-busy",busy);root.classList.toggle("playing",!!started);
+  let txt="";
+  if(st.ctl&&started&&!busy&&target){try{txt=typeof target.label==="function"?target.label():target.label}catch(_){}}
+  if(txt!==lastCap){cap.textContent=txt?"행동: "+txt:"";lastCap=txt}
+  requestAnimationFrame(loop);
+})();
+})();
 </script>
 </body>
 </html>
