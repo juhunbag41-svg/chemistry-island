@@ -15,6 +15,22 @@
   #track{right:12px;top:48px;max-width:300px;font-size:13px;font-weight:normal;line-height:1.5;display:none}
   #hint{left:12px;bottom:10px;font-size:12px;font-weight:normal;opacity:.9}
   #netpill{left:12px;top:46px;display:none;font-size:13px}
+  #cap{position:absolute;left:50%;transform:translateX(-50%);bottom:34px;width:min(780px,86%);text-align:center;color:#fff;background:rgba(10,14,30,.66);border-radius:14px;padding:10px 18px;font-size:19px;line-height:1.5;opacity:0;transition:opacity .4s;pointer-events:none;z-index:15;text-shadow:0 2px 0 rgba(0,0,0,.5)}
+  #skip{display:none;position:absolute;right:14px;top:12px;z-index:30;font:inherit;font-size:14px;font-weight:bold;background:rgba(255,251,234,.92);border:3px solid #9b6b43;border-radius:20px;padding:3px 14px;cursor:pointer;color:#4a3326}
+  .cutscene #skip{display:block}
+  .cutscene .pill,.cutscene #hint,.cutscene #touch,.cutscene #mobcap,.cutscene #mobmenu{display:none!important}
+  #start.setting>p{display:none}
+  #start.setting h1{font-size:34px;margin-bottom:2px}
+  .mob #start.setting h1{font-size:28px}
+  #start{overflow-y:auto}
+  #setup{display:none;max-width:440px}
+  #setup p{font-size:14px;line-height:1.5}
+  #setup input{font:inherit;font-size:18px;padding:6px 12px;border:3px solid #b8832a;border-radius:12px;text-align:center;width:200px;margin-top:6px}
+  #sshirts{margin:8px 0 2px}
+  #sshirts .sw{width:40px;height:40px;border-radius:50%;border:3px solid #fff;margin:4px;cursor:pointer;padding:0}
+  #sshirts .sw.on{border-color:#e8802a;box-shadow:0 0 0 3px #fff}
+  #smsg{min-height:20px;font-size:13px;color:#b03a2a}
+  #setup .btn{font-size:19px;padding:8px 26px}
   #raidhud{left:50%;transform:translateX(-50%);top:10px;display:none;font-size:13px;white-space:nowrap}
   #mobemo{display:none}
   #toast{position:absolute;left:50%;top:56px;transform:translateX(-50%);background:rgba(60,40,25,.88);color:#fff;border-radius:14px;padding:7px 18px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:pre-wrap;text-align:center;max-width:620px}
@@ -67,6 +83,8 @@
   .mob .pill{font-size:12px;padding:2px 10px;border-width:2px}
   .mob #coin{left:max(8px,env(safe-area-inset-left));top:max(6px,env(safe-area-inset-top))}
   .mob #clock{right:max(8px,env(safe-area-inset-right));top:max(6px,env(safe-area-inset-top))}
+  .mob #cap{bottom:calc(max(18px,env(safe-area-inset-bottom)) + 8px);font-size:15px;padding:8px 12px}
+  .mob #skip{top:max(8px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));min-height:40px}
   .mob #netpill{left:max(8px,env(safe-area-inset-left));top:calc(max(6px,env(safe-area-inset-top)) + 26px);font-size:11px}
   .mob #raidhud{top:calc(max(6px,env(safe-area-inset-top)) + 26px);font-size:11px}
   .inplaza #mobemo{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
@@ -129,14 +147,26 @@
   <div id="raidhud" class="pill"></div>
   <div id="hint" class="pill">방향키/WASD 이동 · E 상호작용 · I 보관함 · Q 일지 · M 지도 · H 도움말</div>
   <div id="toast"></div>
+  <div id="cap"></div>
+  <button id="skip" type="button">건너뛰기 ⏭</button>
   <div id="dlg"><div id="dwho"></div><div id="dtxt"></div><div id="dopts"></div><div id="dnext">▼</div></div>
   <div id="win"><div id="whd"><span id="wt"></span><button id="wx">✕</button></div><div id="wb"></div></div>
   <div id="start">
     <h1>화학 섬 이야기</h1>
     <p>작은 섬에 도착한 새 연구원! 재료를 모으고, 물건을 만들고, 돌턴 박사와 함께 화학을 실험하며 섬을 가꿔 보세요.</p>
     <p>이동 방향키/WASD · 상호작용 E(Space) · 보관함 I · 일지 Q · 지도 M</p>
-    <button class="btn" id="bnew">새로 시작</button>
-    <button class="btn" id="bcont" style="display:none">이어하기</button>
+    <div id="smain">
+      <button class="btn" id="bnew">새로 시작</button>
+      <button class="btn" id="bcont" style="display:none">이어하기</button>
+    </div>
+    <div id="setup">
+      <p><b>신입 연구원 등록</b><br>광장에서 다른 사람에게 보이는 이름(8자까지)과 셔츠 색을 정해 주세요.<br>본명 대신 별명을 추천해요.</p>
+      <input id="snick" maxlength="8" placeholder="이름" autocomplete="off">
+      <div id="sshirts"></div>
+      <div id="smsg"></div>
+      <button class="btn" id="bgo">입소하기</button>
+      <button class="btn" id="bback">뒤로</button>
+    </div>
   </div>
   <div id="touch">
     <div id="pad" class="ctl"><i data-d="U">▲</i><i data-d="D">▼</i><i data-d="L">◀</i><i data-d="R">▶</i><b id="padknob"></b></div>
@@ -858,6 +888,7 @@ function dalLoc(){
 let target=null;
 function frontPt(){const v=DV[P.dir];return{x:P.x+v[0]*10,y:P.y-5+v[1]*10}}
 function pickTarget(){
+  if(scene==="cut"){target=null;return}
   const f=frontPt();let best=null,bd=1e9;
   const test=it=>{if(it.ok&&!it.ok())return;const cx=clamp(f.x,it.rx,it.rx+it.rw),cy=clamp(f.y,it.ry,it.ry+it.rh),d=Math.hypot(f.x-cx,f.y-cy);if(d<=6&&d<bd){bd=d;best=it}};
   if(scene==="out"){
@@ -913,6 +944,7 @@ function enterDoor(d){
 function exitHouse(){fadeTo(()=>{scene="out";P.x=lastOut[0];P.y=lastOut[1];P.dir=0;camSnap()})}
 function camSnap(){updateCam(1e3)}
 function updateCam(dt){
+  if(scene==="cut")return;
   if(scene==="out"||scene==="plaza"){const pz=scene==="plaza",tx=clamp(P.x-VW/2,0,(pz?PW:MW)*16-VW),ty=clamp(P.y-VH/2-6,0,(pz?PH:MH)*16-VH);cam.x+=(tx-cam.x)*Math.min(1,dt*6);cam.y+=(ty-cam.y)*Math.min(1,dt*6)}
   else{cam.x=-((VW-CUR.w*16)>>1);cam.y=-(((VH-CUR.h*16)>>1)-4)}
 }
@@ -1025,7 +1057,7 @@ function openWin(title,build,w=560){
 function refreshWin(){if(!curWin)return;const b=$("wb");b.innerHTML="";curWin.build(b)}
 function closeWin(){curWin=null;$("win").style.display="none"}
 $("wx").onclick=closeWin;
-const busy=()=>!!dl||!!curWin||fade.dir!==0||!started;
+const busy=()=>!!dl||!!curWin||fade.dir!==0||!started||scene==="cut";
 function toast(m,ms=3200){const t=$("toast");t.textContent=m;t.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.opacity=0,ms)}
 function stepper(get,set,min,max,fmtf,onch){
   const w=el("span","row"),m=el("button","btn sm","−"),p=el("button","btn sm","+"),v=el("b","",fmtf(get()));
@@ -1427,6 +1459,11 @@ function drawFireflies(){
 }
 function render(){
   const fr=Math.floor(time*1.8)%4;labels.length=0;
+  if(scene==="cut"){
+    cutRender();ctx.imageSmoothingEnabled=false;ctx.drawImage(wc,0,0,VW*SC,VH*SC);cutOverlay();
+    if(fade.a>0){ctx.fillStyle=`rgba(20,16,24,${fade.a})`;ctx.fillRect(0,0,960,600)}
+    return;
+  }
   g.fillStyle=scene==="out"||scene==="plaza"?"#58bfe0":"#2d2a36";g.fillRect(0,0,VW,VH);
   const dr=[];
   if(scene==="out"){
@@ -1573,7 +1610,9 @@ const HAIRS=["#7a4a2a","#3a2a22","#c98a3a","#2a2a34"];
 const cleanNick=s=>String(s||"").replace(/[^0-9A-Za-z가-힣ㄱ-ㅎㅏ-ㅣ_ -]/g,"").trim().slice(0,8);
 
 async function netConnect(){
-  const tok=++NET.tok,dead=()=>tok!==NET.tok||scene!=="plaza";
+  if(NET.connecting||NET.ok)return;   // 컷신 중에 미리 연결해 두므로, 이미 연결(중)이면 다시 하지 않는다
+  const tok=++NET.tok,dead=()=>tok!==NET.tok||(scene!=="plaza"&&scene!=="cut");
+  NET.connecting=true;
   try{
     if(!NET.be){
       let be=null;
@@ -1606,11 +1645,13 @@ async function netConnect(){
     if(be.onConn){let first=true;const un=be.onConn(c=>{if(first){first=false;return}if(c&&NET.ok&&scene==="plaza"&&NET.be===be){be.set(NET.path,node()).catch(e=>console.warn("재연결 후 복구 실패:",e));be.onDisc(NET.path)}});NET.subs.push(un)}
     if(be.hello)be.hello();
     NET.ok=true;NET.lx=NET.ly=NET.ld=-1;
-    toast(be.kind==="local"?"🌐 연습 모드: 같은 브라우저의 다른 탭에서만 서로 보여요.":`🌐 광장 ${ch.slice(1)}번 채널에 연결했어요!`,3800);
+    const note=be.kind==="local"?"🌐 연습 모드: 같은 브라우저의 다른 탭에서만 서로 보여요.":`🌐 광장 ${ch.slice(1)}번 채널에 연결했어요!`;
+    if(scene==="plaza")toast(note,3800);else NET.pending=note;   // 컷신 중이면 도착한 뒤에 알린다
   }catch(e){console.warn("광장 연결 오류:",e);toast("광장에 연결하지 못했어요. 잠시 뒤 다시 들어와 주세요.",4500)}
+  finally{if(tok===NET.tok)NET.connecting=false}
 }
 function netLeave(){
-  NET.tok++;for(const u of NET.subs){try{u()}catch(e){}}NET.subs=[];
+  NET.tok++;NET.connecting=false;NET.pending=null;for(const u of NET.subs){try{u()}catch(e){}}NET.subs=[];
   if(NET.ok&&NET.be&&NET.path){try{NET.be.remove(NET.path)}catch(e){}}
   NET.ok=false;NET.kicked=false;NET.players={};NET.remote={};NET.raid=null;NET.count=0;PLZ.myEmo=null;RD.liveFn=null;RD.last="";
 }
@@ -1645,7 +1686,7 @@ function netSend(dt){
 }
 function plazaEmote(i){
   if(!NET.ok)return;
-  PLZ.myEmo={id:i,t:time};NET.be.update(NET.path,{e:i,et:NET.be.now()+i});
+  TUT.emoted=true;PLZ.myEmo={id:i,t:time};NET.be.update(NET.path,{e:i,et:NET.be.now()+i});
 }
 function remotePal(r){return{skin:"#ffd9b8",hair:HAIRS[r.s%4],top:SHIRTS[r.s],bottom:"#3d5a80",key:"player"+r.s}}
 
@@ -1675,7 +1716,12 @@ function buildPlazaOnce(){
   for(const bx of[16,32])add({k:"booth",tx:bx,ty:20,tw:2,th:1,sy:21*16},bx*16,20*16,32,16,"전시 부스",()=>msg("레이드에 쓰이는 화학 원리가 전시되어 있다.\n증기 압력 내림 · 끓는점과 외부 압력 · 돌턴의 분압 법칙"));
   add({k:"plz",sub:"crate",tx:30,ty:13,tw:1,th:1,sy:14*16},30*16,13*16,16,16,"🎁 레이드 재료 상자",()=>plazaSupply());
   // 부두와 배
-  add({k:"plz",sub:"boat",tx:24,ty:32,tw:2,th:1,sy:33*16},24*16,32*16,32,16,"⛵ 배 타고 내 섬으로 돌아가기",()=>{ask("","내 섬으로 돌아갈까요?",["돌아간다","더 머문다"]).then(c=>{if(c===0)exitPlaza()})});
+  add({k:"plz",sub:"boat",tx:24,ty:32,tw:2,th:1,sy:33*16},24*16,32*16,32,16,"⛵ 배 타고 내 섬으로 돌아가기",()=>{
+    if(S.flags.intro&&!S.flags.tutDone&&!S.flags.met){msg("먼저 돌턴 박사님께 인사부터 드리자.\n입소식을 마쳐야 내 연구 섬으로 갈 수 있어.");return}
+    ask("","내 섬으로 돌아갈까요?",["돌아간다","더 머문다"]).then(c=>{if(c===0)exitPlaza()})});
+  // 돌턴 박사(입소식·안내)
+  PLZ.dA=mkAnim(3);
+  add({k:"plz",sub:"dalton",tx:27,ty:21,tw:1,th:1,sy:22*16},27*16,21*16-8,16,24,()=>S.flags.met?"돌턴 박사와 이야기하기":"👋 돌턴 박사에게 인사하기",()=>talkDaltonPlaza());
   for(let x=13;x<=36;x+=2)PLZ.objs.push({k:"flag",tx:x,ty:9,tw:1,th:1,sy:9*16-200,c:x});
   // 나무·바위·풀
   let tc=0,tr=0;
@@ -1739,6 +1785,7 @@ function plazaUpdate(dt){
     if(Math.hypot(dx,dy)>64){r.x=r.tx;r.y=r.ty}else{const k=Math.min(1,dt*12);r.x+=dx*k;r.y+=dy*k}
     animChar(r.anim,r.x,r.y,r.d,dt,9,false,null);
   }
+  if(PLZ.dA){const typing=!!dl&&dl.shown<dl.text.length&&dl.who===DN;animChar(PLZ.dA,27*16+8,21*16+12,0,dt,7,typing,["adjust"])}
   if(NET.ok){netSend(dt);raidTick(dt)}
   PLZ.hud-=dt;if(PLZ.hud<=0){PLZ.hud=.4;updatePlazaHud()}
 }
@@ -1782,9 +1829,12 @@ function enterPlaza(){
   });
 }
 function exitPlaza(){
-  fadeTo(()=>{netLeave();scene="out";P.x=lastOut[0];P.y=lastOut[1];P.dir=0;camSnap();$("hint").textContent=HINT_OUT;updatePlazaHud()});
+  const first=!!(S.flags.intro&&!S.flags.tutDone);   // 튜토리얼을 마치고 처음 내 섬으로 가는 길
+  fadeTo(()=>{netLeave();if(first){S.flags.tutDone=1;lastOut=START_POS.slice()}scene="out";P.x=lastOut[0];P.y=lastOut[1];P.dir=0;camSnap();$("hint").textContent=HINT_OUT;updatePlazaHud();
+    if(first){toast("🏝️ 내 연구 섬에 도착했어요!\n서쪽 연구 공간의 돌턴 박사에게 말을 걸어 보세요. (E)",5000);save()}});
 }
 function plazaSupply(){
+  if(S.flags.intro&&!S.flags.tutKit){S.flags.tutKit=1;give("sugar",3);give("salt",1);msg("신입 연구원용 기본 키트다!\n설탕 3, 소금 1을 받았다. 레이드 1단계(증기 압력 내림)에 쓰이는 재료야. 내 섬에서도 모을 수 있어.");return}
   const r=NET.raid;
   if(!r||!(r.st==="lobby"||r.st==="p1")||!isMem(r)){msg("재료 상자다.\n레이드에 참가한 뒤(모집 중이거나 1단계일 때) 열면, 레이드 1회당 한 번 ‘설탕 3, 소금 1’ 키트를 받을 수 있어요.");return}
   if(S.flags.kitSeq===r.seq){msg("이번 레이드 키트는 이미 받았어요.");return}
@@ -1807,6 +1857,8 @@ function drawPlzObj(o){
     else if(st==="lost"){R(x+22+sh,y+31,20,2,"#2a2a34");R(x+20+sh,y+33,2,2,"#2a2a34");R(x+42+sh,y+33,2,2,"#2a2a34")}
     else{R(x+22+sh,y+31,20,3,"#2a2a34");for(let i=0;i<4;i++)R(x+24+i*4+sh,y+31,2,2,"#f0f0f0")}
     if(act||st==="lobby"){for(let i=0;i<3;i++){const p=(t*.9+i*.33)%1;R(x+14+i*18+Math.round(Math.sin(t*3+i)*3),y-4-Math.round(p*18),4,4,`rgba(255,255,255,${(.7*(1-p)).toFixed(2)})`)}}
+  }else if(o.sub==="dalton"){
+    person(x+8,y+12,0,0,false,PAL_D,PLZ.dA);labels.push([x+8,y+12-34,DN]);
   }else if(o.sub==="crate"){
     R(x+1,y+13,14,3,"rgba(0,0,0,.18)");R(x+1,y+4,14,11,"#b07a4a");R(x+1,y+4,14,3,"#d9a56a");R(x+1,y+9,14,1,"#8a5a34");R(x+7,y+4,2,11,"#8a5a34");
     R(x+4,y-2,4,6,"#cfe8ff");R(x+4,y+1,4,3,"#ffd84a");R(x+9,y,3,4,"#e8eef4");
@@ -2055,11 +2107,180 @@ function raidBuild(b){
 }
 addEventListener("pagehide",()=>{if(NET.be&&NET.be.close)NET.be.close()});
 
+// ================= 오프닝 컷신 + 시작 튜토리얼 =================
+// 새 게임: 이름·셔츠 → 컷신(scene="cut") → 광장 도착(돌턴 입소식·끓는점 퀴즈·재료 키트) → 배로 내 섬(q1).
+// 기존 세이브(이어하기)는 컷신·입소식을 건너뛴다. 새 플래그는 intro·team·tutKit·tutDone 뿐이다.
+const START_POS=[20*16+8,19*16+8];   // 새 게임의 내 섬 시작 위치(서쪽 연구 공간 근처). 튜토리얼 중 저장돼도 여기서 이어진다.
+const CUT={on:false,skip:false,t:0,g:0,shot:0,crew:[],real:false,labels:[]};
+const TUT={emoted:false};
+const CUT_SHOTS=[
+  {ms:6000,cap:"섬의 한가운데에는 낡은 증류솥이 있다. 바닷물을 끓여 모든 섬에 맑은 물을 나눠 주는 솥이다."},
+  {ms:8000,cap:"그런데 요즘 솥이 이상하다. 끓는점이 제멋대로 변하고, 압력이 오르내리고, 기체가 뒤섞인다."},
+  {ms:8000,cap:"돌턴 박사는 도움을 청했다. 화학을 아는 신입 연구원, 바로 당신들에게."},
+  {ms:8000,cap:""},
+  {ms:6000,cap:""}
+];
+const sleepCut=ms=>new Promise(res=>{const t0=performance.now(),iv=setInterval(()=>{if(CUT.skip||performance.now()-t0>=ms){clearInterval(iv);res()}},40)});
+function setCap(t){const c=$("cap");c.textContent=t||"";c.style.opacity=t?1:0}
+// 샷 3 시작 시점에 접속해 있는 사람(없으면 NPC 실루엣). 연결이 늦어도 컷신은 멈추지 않는다.
+function cutCrew(){
+  const crew=[{n:S.flags.nick||"나",c:SHIRTS[S.shirt%5]}];let real=false;
+  if(NET.ok&&NET.be){const now=NET.be.now();for(const u in NET.players){const p=NET.players[u];if(!p||u===NET.uid||isMine(u)||now-p.t>STALE)continue;crew.push({n:String(p.n||"?").slice(0,8),c:SHIRTS[(p.s|0)%5]});real=true;if(crew.length>=6)break}}
+  if(!real)for(const[n,c]of[["보일","#4a9ee0"],["샤를","#e8802a"],["연구원","#6bc16b"]])crew.push({n,c});
+  CUT.crew=crew;CUT.real=real;
+}
+async function runIntro(){
+  for(let i=0;i<CUT_SHOTS.length&&!CUT.skip;i++){
+    CUT.shot=i;CUT.t=0;
+    if(i===2)cutCrew();
+    let cap=CUT_SHOTS[i].cap;
+    if(i===3){const n=CUT.real?CUT.crew.length:0;cap=n>1?`오늘 입소하는 연구원은 ${n}명. 낯선 얼굴도, 아는 얼굴도 있다.`:"오늘 입소하는 연구원은 여러 명. 낯선 얼굴도, 아는 얼굴도 있다."}
+    setCap(cap);await sleepCut(CUT_SHOTS[i].ms);
+  }
+  setCap("");
+}
+function beginIntro(){
+  for(const k in keys)keys[k]=false;
+  buildPlazaOnce();lastOut=START_POS.slice();
+  P.x=PLZ.spawn[0];P.y=PLZ.spawn[1];P.dir=3;
+  S.flags.intro=1;TUT.emoted=false;
+  Object.assign(CUT,{on:true,skip:false,t:0,g:0,shot:0,crew:[],real:false,labels:[]});
+  scene="cut";CUR=null;target=null;
+  document.documentElement.classList.add("cutscene");
+  netConnect();   // 컷신이 연결 대기 시간을 가려 준다
+  runIntro().catch(e=>console.warn("컷신 오류:",e)).then(finishIntro);
+}
+function finishIntro(){
+  setCap("");
+  fadeTo(()=>{
+    scene="plaza";CUR=null;P.x=PLZ.spawn[0];P.y=PLZ.spawn[1];P.dir=3;camSnap();
+    document.documentElement.classList.remove("cutscene");CUT.on=false;
+    for(const k in keys)keys[k]=false;
+    $("hint").textContent=HINT_PLAZA;
+    if(!NET.ok&&!NET.connecting)netConnect();
+    const note=NET.pending?NET.pending+"\n":"";NET.pending=null;
+    toast(note+"🌐 광장에 도착했어요! 숫자 1~8로 인사하고, 돌턴 박사에게 말을 걸어 보세요. (E)",5000);
+    updateHud();
+  });
+}
+// ---- 컷신 그리기: 외부 파일 없이 캔버스 도형만 쓴다. 좌표는 내부 해상도(320×200) 기준
+const Q=(x,y,w,h,c)=>{g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),w,h)};
+const Cd=(cx,cy,r,c)=>{g.fillStyle=c;for(let dy=-r;dy<=r;dy++){const w=Math.floor(Math.sqrt(r*r+r*.8-dy*dy));g.fillRect(Math.round(cx)-w,Math.round(cy)+dy,w*2+1,1)}};
+function cutSky(p){
+  const top=mixc("#0b1030","#6a7cc0",p),bot=mixc("#28386c","#f8cfa6",p);
+  for(let y=0;y<112;y++)Q(0,y,VW,1,mixc(top,bot,y/112));
+  const a=1-p;
+  if(a>.02)for(let i=0;i<46;i++){const tw=.35+.65*Math.abs(Math.sin(CUT.g*1.7+i));Q(hh(i,7,1)%VW,hh(i,9,2)%100,1,1,`rgba(255,255,255,${(a*tw).toFixed(2)})`)}
+}
+function cutSea(p){
+  Q(0,112,VW,VH-112,mixc("#10285a","#4aa0c8",p));
+  for(let y=114;y<VH;y+=3){const o=Math.sin(CUT.g*.9+y*.4)*6;for(let x=-12;x<VW;x+=34)Q(x+o+(y%7)*3,y,14,1,`rgba(255,255,255,${((.07+.05*Math.sin(CUT.g+x))*(.4+p)).toFixed(2)})`)}
+}
+// 섬의 실루엣과 중앙 증류솥. 솥 꼭대기 좌표를 돌려준다.
+function cutIsland(cx,base,sc,p){
+  const c1=mixc("#0c1a22","#3f7f4a",p*.8+.1),c2=mixc("#14262c","#6db35c",p*.8+.1),w=46*sc;
+  Q(cx-w,base-3*sc,w*2,3*sc,c1);Q(cx-w*.8,base-6*sc,w*1.6,3*sc,c2);Q(cx-w*.5,base-9*sc,w,3*sc,c1);
+  Q(cx-4*sc,base-14*sc,8*sc,6*sc,"#2c2c38");Q(cx-6*sc,base-16*sc,12*sc,3*sc,"#3a3a48");Q(cx-1.5*sc,base-20*sc,3*sc,5*sc,"#3a3a48");
+  return{x:cx,y:base-20*sc};
+}
+function cutSteam(x,y,size,yel,fl){
+  for(let i=0;i<14;i++){
+    const ph=(CUT.g*.45+i/14)%1,yy=y-ph*72*size,xx=x+Math.sin(CUT.g*1.2+i*1.7)*(3+ph*10*size),r=Math.max(1,Math.round((2+ph*9)*size)),al=(1-ph)*.55*fl;
+    Cd(xx,yy,r,`rgba(255,255,${Math.round(255-yel*120)},${al.toFixed(2)})`);
+  }
+}
+function cutFigure(x,fy,col,label){
+  const sil=mixc(col,"#0b1020",.4);
+  Q(x-4,fy-14,8,11,sil);Q(x-3,fy-3,2,3,"#0b1020");Q(x+1,fy-3,2,3,"#0b1020");Cd(x,fy-18,4,mixc("#e8c9a8","#0b1020",.45));
+  if(label)CUT.labels.push([x,fy-27,label]);
+}
+function cutDeck(top,showNames){
+  const bob=Math.round(Math.sin(CUT.g*1.3));
+  Q(0,top+bob,VW,VH-top,"#2a1d18");Q(0,top+bob,VW,4,"#5a4030");
+  for(let x=0;x<VW;x+=16)Q(x,top+bob+4,2,10,"#4a3426");
+  for(let y=top+18;y<VH;y+=8)Q(0,y+bob,VW,1,"#3a2a22");
+  const n=CUT.crew.length,sp=Math.min(24,Math.floor(150/Math.max(1,n)));
+  CUT.crew.forEach((m,i)=>cutFigure(160+(i-(n-1)/2)*sp,top+bob+22,m.c,showNames?m.n:null));
+}
+function cutRender(){
+  CUT.labels=[];
+  const s=CUT.shot,t=CUT.t,G=CUT.g,fl=Math.max(.15,.55+.45*Math.sin(G*5.3)*Math.sin(G*2.1+1));
+  if(s===0){
+    cutSky(0);cutSea(0);const pot=cutIsland(160,114,.9,0);cutSteam(pot.x,pot.y,.8,0,fl);
+  }else if(s===1){
+    cutSky(0);cutSea(0);const pot=cutIsland(160,114,.9,0);
+    cutSteam(pot.x,pot.y,.9+.6*(.5+.5*Math.sin(t*1.3)),clamp(t/8,0,1),1);
+  }else if(s===2){
+    cutSky(.1);cutSea(.1);const pot=cutIsland(250,114,.5,.1);cutSteam(pot.x,pot.y,.5,1,.8);
+    cutDeck(140,true);
+  }else if(s===3){
+    const p=clamp(.25+t/8*.75,0,1);
+    cutSky(p);cutSea(p);const pot=cutIsland(160,113,1.5,p);cutSteam(pot.x,pot.y,.55,.6,.8);
+    Q(116,113,24,3,"#8a5a34");
+    const wv=Math.sin(G*6)>0;Q(125,101,6,10,"#f4f4f4");Cd(128,97,3,"#f0c8a0");Q(125,93,6,2,"#d8d8e0");Q(132,wv?92:97,2,6,"#f4f4f4");
+    cutDeck(170,false);
+  }else{
+    cutSky(1);cutSea(1);
+    const k=clamp(t/3,0,1);
+    for(let i=0;i<16;i++){const a=i/16*6.283+G*.5,R_=(1-k)*70+4;Cd(160+Math.cos(a)*R_,90+Math.sin(a)*R_*.6,Math.round(4+k*6),"rgba(255,255,255,.35)")}
+  }
+  if(G<1.2){g.fillStyle=`rgba(0,0,0,${(1-G/1.2).toFixed(2)})`;g.fillRect(0,0,VW,VH)}
+}
+function cutOverlay(){
+  ctx.textAlign="center";ctx.lineJoin="round";ctx.font=`bold 14px ${FONT}`;
+  for(const[lx,ly,t]of CUT.labels){const sx=lx*SC,sy=ly*SC;ctx.lineWidth=4;ctx.strokeStyle="rgba(10,14,30,.85)";ctx.strokeText(t,sx,sy);ctx.fillStyle="#fff7d6";ctx.fillText(t,sx,sy)}
+  if(CUT.shot===4){
+    const a=clamp((CUT.t-1.5)/1.5,0,1);
+    if(a>0){ctx.globalAlpha=a;ctx.font=`bold 64px ${FONT}`;ctx.lineWidth=8;ctx.strokeStyle="#8a4a10";ctx.strokeText("화학 섬 이야기",480,330);ctx.fillStyle="#fff";ctx.fillText("화학 섬 이야기",480,330);ctx.globalAlpha=1}
+  }
+}
+// ---- 시작 화면: 이름·셔츠 색 정하기
+function initSetup(){
+  const box=$("sshirts"),inp=$("snick");let pick=0;
+  SHIRTS.forEach((c,i)=>{const b=el("button","sw");b.type="button";b.style.background=c;b.setAttribute("aria-label","셔츠 색 "+(i+1));
+    b.onclick=()=>{pick=i;[...box.children].forEach((x,j)=>x.classList.toggle("on",j===i))};box.append(b)});
+  box.children[0].classList.add("on");
+  const go=()=>{const v=cleanNick(inp.value);if(!v){$("smsg").textContent="이름을 1자 이상 입력해 주세요. (한글·영문·숫자 8자까지)";return}startGame(false,{nick:v,shirt:pick})};
+  $("bgo").onclick=go;inp.onkeydown=e=>{if(e.key==="Enter")go()};
+  $("bnew").onclick=()=>{$("smain").style.display="none";$("setup").style.display="block";$("start").classList.add("setting");setTimeout(()=>inp.focus(),30)};
+  $("bback").onclick=()=>{$("setup").style.display="none";$("smain").style.display="block";$("start").classList.remove("setting")};
+  $("skip").onclick=()=>{CUT.skip=true};
+}
+// ---- 광장 튜토리얼
+function tutStep(){
+  if(!S.flags.intro||S.flags.tutDone||scene!=="plaza")return null;
+  if(!S.flags.met)return TUT.emoted?"🧑‍🔬 <b>돌턴 박사에게 입소식을 받자</b>":"👋 <b>숫자 키 1~8로 인사해 보자</b><br>(모바일은 ☰ 메뉴의 이모티콘)";
+  if(!S.flags.tutKit)return"🎁 <b>재료 상자에서 기본 키트를 받자</b>";
+  return"⛵ <b>남쪽 부두의 배를 타고 내 연구 섬으로 가자</b>";
+}
+async function talkDaltonPlaza(){
+  if(!S.flags.met){
+    S.flags.met=1;
+    await say(DN,"다들 와 줘서 고맙다! 이 섬의 물을 만들어 주는 중앙 증류솥이 요즘 말썽이란다.");
+    await say(DN,"원인은 솥 안의 물질이 제각각이라는 것. 용질이 섞이고, 압력이 변하고, 기체가 뒤섞이지.");
+    await say(DN,"인사는 숫자 키(1~8)로, 이름 위에 말풍선처럼 떠. 채팅은 일부러 없앴으니 이모티콘으로 인사해 주렴!");
+    await say(DN,"자, 몸풀기 문제 하나! 가운데 있는 중앙 증류솥을 보렴.");
+    await runQuiz({q:()=>"솥 속 순수한 물은 1기압에서 100 ℃에 끓어. 이 물에 소금(NaCl)을 녹이면 끓는점은 어떻게 될까?",
+      o:["100 ℃보다 낮아진다","100 ℃ 그대로다","100 ℃보다 높아진다"],a:2,
+      why:"용질이 녹으면 증기 압력이 내려가서, 외부 압력과 같아지려면 더 높은 온도가 필요해. ΔTb = i·Kb·m (물의 Kb = 0.512 ℃·kg/mol, 소금은 이온 2개라 i ≈ 2).",
+      hint:"용질이 녹으면 용액의 증기 압력은 어떻게 되는지 떠올려 보렴."});
+    S.flags.team=Math.random()<.5?"보일":"샤를";
+    await say(DN,`너는 「${S.flags.team}」 팀이야. (보일은 압력과 부피, 샤를은 온도와 부피의 관계를 밝힌 과학자란다.)`);
+    await say(DN,"광장 한쪽의 재료 상자에서 기본 키트를 받고, 남쪽 부두의 배로 네 연구 섬에 가 보렴. 거기서 기초를 익히고 나면 이 광장에서 같이 솥을 고치자. 레이드는 누구나 도전할 수 있어!");
+    save();return;
+  }
+  const c=await ask(DN,"광장에는 처음이 아니구나. 무엇이 궁금하니?",["솥 골렘 레이드","화학 이야기","그냥 인사했어요"]);
+  if(c===0)await say(DN,"가운데 솥 골렘에게 E를 누르면 레이드를 모집할 수 있어. 1단계는 용질로 증기 압력 내리기, 2단계는 외부 압력으로 끓는점 올리기, 3단계는 분압에 맞춰 기체 넣기란다. 누구나 도전할 수 있고, 혼자서도 할 수 있어!");
+  else if(c===1)await chemChat();
+  else await say(DN,"그래, 좋은 하루 보내렴!");
+}
+
 // ================= 메인 루프/입력 =================
 function updateHud(){
   $("coin").textContent=`🪙 ${S.coins}`;
   const pz=scene==="plaza"&&NET.ok,mn=pz?plazaMin():S.min,h=Math.floor(mn/60),m=Math.floor(mn%60);
   $("clock").textContent=`${pz?"🌐 광장":S.day+"일차"} ${h<12?"오전":"오후"} ${((h+11)%12)+1}:${String(m).padStart(2,"0")}`;
+  const ts=tutStep();if(ts){const t0=$("track");t0.style.display="block";t0.innerHTML=ts;return}
   const id=QORDER.find(i=>S.q[i]!=="done"),tr=$("track");
   if(!id){tr.style.display="none";return}
   const Q=QUESTS[id];tr.style.display="block";
@@ -2086,6 +2307,7 @@ function frame(now){
     }else P.moving=false;
     if(scene==="out")updateDalton(dt);
     if(scene==="plaza")plazaUpdate(dt);
+    else if(scene==="cut"){CUT.t+=dt;CUT.g+=dt;if(NET.ok)netSend(dt)}
     pickTarget();updateCam(dt);animStep(dt);
     hudT-=dt;if(hudT<=0){hudT=.25;updateHud()}
     saveT+=dt;if(saveT>30){saveT=0;if(!busy())save()}
@@ -2094,6 +2316,7 @@ function frame(now){
 }
 addEventListener("keydown",e=>{
   if(e.target&&e.target.tagName==="INPUT")return;
+  if(scene==="cut"){if(!e.repeat&&e.code==="Escape")CUT.skip=true;return}
   if(!started)return;
   if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();
   if(e.code==="Escape"){if(curWin)closeWin();return}
@@ -2117,14 +2340,17 @@ addEventListener("resize",fit);fit();
 buildTiles();buildOut();buildInts();
 try{buildTilesV2();buildGround()}catch(e){GROUND=null;console.warn("지면 캐시 생성 실패, 기존 타일 렌더링으로 대체합니다:",e)}
 loadSprites();
-function startGame(loaded){
+function startGame(loaded,opt){
   $("start").style.display="none";started=true;
-  if(!loaded){S=newState();P.x=20*16+8;P.y=19*16+8;D.x=13*16+8;D.y=23*16+12}
-  scene="out";CUR=null;D.path=[];camSnap();updateHud();
+  if(!loaded){S=newState();P.x=START_POS[0];P.y=START_POS[1];D.x=13*16+8;D.y=23*16+12;if(opt){S.flags.nick=opt.nick;S.shirt=opt.shirt}}
+  else if(S.flags.intro&&!S.flags.tutDone)S.flags.tutDone=1;   // 튜토리얼 도중 저장된 세이브는 내 섬에서 이어서 시작
+  D.path=[];
   setTimeout(()=>$("hint").style.opacity=.55,15000);
+  if(!loaded&&opt){beginIntro();return}   // 새 게임: 컷신 → 광장 튜토리얼
+  scene="out";CUR=null;camSnap();updateHud();
   toast(loaded?"다시 돌아왔어요! 섬이 반겨 주네요.":"🏝️ 섬에 도착했어요!\n서쪽 연구 공간에 있는 돌턴 박사에게 말을 걸어 보세요. (E)",5000);
 }
-$("bnew").onclick=()=>startGame(false);
+initSetup();
 try{if(localStorage.getItem(SAVE)){$("bcont").style.display="inline-block";$("bcont").onclick=()=>startGame(loadSave())}}catch(e){}
 P.x=20*16+8;P.y=19*16+8;D.x=13*16+8;D.y=23*16+12;camSnap();
 requestAnimationFrame(frame);
@@ -2210,7 +2436,8 @@ game.addEventListener("contextmenu",e=>{if(st.mob)e.preventDefault()});
 // ---- 레이아웃
 function place(){
   if(!st.aw)return;
-  const z=st.z,W=960*z,H=600*z,px=(P.x-cam.x)*3*z,py=(P.y-cam.y)*3*z;
+  const cc=scene==="cut"?[VW/2,VH/2]:[P.x-cam.x,P.y-cam.y];   // 컷신은 화면 중앙 고정
+  const z=st.z,W=960*z,H=600*z,px=cc[0]*3*z,py=cc[1]*3*z;
   const tx=Math.min(0,Math.max(st.aw-W,st.aw/2-px)),ty=Math.min(0,Math.max(st.ah-H,st.ah/2-py));
   const s=`translate(${Math.round(tx)}px,${Math.round(ty)}px)`;if(s!==lastT){cv.style.transform=s;lastT=s}
 }
