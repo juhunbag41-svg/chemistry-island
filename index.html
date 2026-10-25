@@ -1548,6 +1548,8 @@ function makeLocalBackend(){
 async function makeFirebaseBackend(cfg){
   const A=await import(FB_CDN+"firebase-app.js"),AU=await import(FB_CDN+"firebase-auth.js"),DB=await import(FB_CDN+"firebase-database.js");
   const app=A.getApps().length?A.getApp():A.initializeApp(cfg),auth=AU.getAuth(app);
+  // Keep Firebase anonymous authentication separate per tab so tabs cannot overwrite the same player node.
+  await AU.setPersistence(auth,AU.inMemoryPersistence);
   const cred=await AU.signInAnonymously(auth),db=DB.getDatabase(app);
   let off=0;DB.onValue(DB.ref(db,".info/serverTimeOffset"),s=>{off=s.val()||0});
   const R_=p=>DB.ref(db,p);
