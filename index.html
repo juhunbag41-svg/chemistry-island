@@ -19,6 +19,10 @@
   #skip{display:none;position:absolute;right:14px;top:12px;z-index:30;font:inherit;font-size:14px;font-weight:bold;background:rgba(255,251,234,.92);border:3px solid #9b6b43;border-radius:20px;padding:3px 14px;cursor:pointer;color:#4a3326}
   .cutscene #skip{display:block}
   .cutscene .pill,.cutscene #hint,.cutscene #touch,.cutscene #mobcap,.cutscene #mobmenu{display:none!important}
+  #start.hasbg{background-size:cover;background-position:center;background-repeat:no-repeat}
+  #start.hasbg>p,#start.hasbg #setup p{background:rgba(255,251,234,.84);border-radius:12px;padding:4px 14px}
+  #start h1.logo{margin:0;text-shadow:none}
+  #start h1.logo img{display:block;max-width:min(460px,80vw);max-height:36vh;object-fit:contain}
   #start.setting>p{display:none}
   #start.setting h1{font-size:34px;margin-bottom:2px}
   .mob #start.setting h1{font-size:28px}
@@ -1461,7 +1465,7 @@ function render(){
   const fr=Math.floor(time*1.8)%4;labels.length=0;
   if(scene==="cut"){
     const bg=cutBg();
-    if(bg)cutDrawBg(bg);else{cutRender();ctx.imageSmoothingEnabled=false;ctx.drawImage(wc,0,0,VW*SC,VH*SC)}
+    if(bg){cutDrawBg(bg);cutFg()}else{cutRender();ctx.imageSmoothingEnabled=false;ctx.drawImage(wc,0,0,VW*SC,VH*SC)}
     cutOverlay();
     if(fade.a>0){ctx.fillStyle=`rgba(20,16,24,${fade.a})`;ctx.fillRect(0,0,960,600)}
     return;
@@ -2123,13 +2127,24 @@ const CUT_SHOTS=[
   {ms:6000,cap:""}
 ];
 // 컷신 배경 이미지(assets/cutscene/). 파일이 있고 불러오기에 성공한 경우에만 쓰고, 없거나 실패하면 기존 도형 그림으로 그린다.
-const CUT_BG={shot1:{img:null,ok:false}};
+// 장면(샷)마다 파일이 있는 것만 이미지로 그리고, 나머지는 도형 그림이다. 이미지를 못 쓰게 하려면 파일을 빼면 된다.
+const CUT_IMG=["shot1","shot2","shot3","shot4","shot5"].map(n=>({src:`assets/cutscene/${n}.webp`,img:null,ok:false,loading:false}));
 function loadCutBg(){
-  if(CUT_BG.shot1.img||CUT_BG.shot1.loading)return;CUT_BG.shot1.loading=true;
-  try{const im=new Image();im.onload=()=>{if(im.naturalWidth>0){CUT_BG.shot1.img=im;CUT_BG.shot1.ok=true}};im.onerror=()=>{CUT_BG.shot1.ok=false;CUT_BG.shot1.loading=false;console.warn("컷신 배경을 불러오지 못해 도형 그림으로 대체합니다.")};im.src="assets/cutscene/shot1.webp"}
-  catch(e){CUT_BG.shot1.loading=false}
+  for(const e of CUT_IMG){
+    if(e.img||e.loading)continue;e.loading=true;
+    try{const im=new Image();im.onload=()=>{if(im.naturalWidth>0){e.img=im;e.ok=true}};im.onerror=()=>{e.ok=false;e.loading=false};im.src=e.src}
+    catch(_){e.loading=false}
+  }
 }
-const cutBg=()=>CUT.shot===0&&CUT_BG.shot1.ok?CUT_BG.shot1.img:null;
+const cutBg=()=>{const e=CUT_IMG[CUT.shot];return e&&e.ok?e.img:null};
+// 이미지 위에 얹는 앞쪽 요소: 샷 3의 접속자 실루엣(갑판 앞). 샷 4는 이미지의 부두 위치가 정해져 있어 돌턴을 얹지 않는다.
+function cutFg(){
+  if(CUT.shot!==2)return;
+  g.clearRect(0,0,VW,VH);CUT.labels=[];
+  const n=CUT.crew.length,sp=Math.min(30,Math.floor(168/Math.max(1,n))),bob=Math.round(Math.sin(CUT.g*1.3));
+  CUT.crew.forEach((m,i)=>cutFigure(160+(i-(n-1)/2)*sp,196+bob,m,m.n));
+  ctx.imageSmoothingEnabled=false;ctx.drawImage(wc,0,0,VW*SC,VH*SC);
+}
 // 화면을 꽉 채우고(cover) 가운데 기준으로 천천히 확대한다. 세로 모바일은 캔버스를 가운데 기준으로 잘라 보여 주므로 섬과 증기 기둥이 남는다.
 function cutDrawBg(im){
   const W=960,H=600,k=Math.max(W/im.naturalWidth,H/im.naturalHeight)*(1+.05*clamp(CUT.t/6,0,1)),w=im.naturalWidth*k,h=im.naturalHeight*k;
@@ -2276,11 +2291,24 @@ function cutOverlay(){
   for(const[lx,ly,t]of CUT.labels){const sx=lx*SC,sy=ly*SC;ctx.lineWidth=4;ctx.strokeStyle="rgba(10,14,30,.85)";ctx.strokeText(t,sx,sy);ctx.fillStyle="#fff7d6";ctx.fillText(t,sx,sy)}
   if(CUT.shot===4){
     const a=clamp((CUT.t-1.5)/1.5,0,1);
-    if(a>0){ctx.globalAlpha=a;ctx.font=`bold 64px ${FONT}`;ctx.lineWidth=8;ctx.strokeStyle="#8a4a10";ctx.strokeText("화학 섬 이야기",480,330);ctx.fillStyle="#fff";ctx.fillText("화학 섬 이야기",480,330);ctx.globalAlpha=1}
+    if(a>0){
+      ctx.globalAlpha=a;ctx.lineWidth=8;ctx.strokeStyle="#8a4a10";ctx.fillStyle="#fff";
+      // 세로 모바일은 가운데 좁은 폭만 보이므로 두 줄로 나눠 양옆이 잘리지 않게 한다
+      const lines=document.documentElement.classList.contains("portrait")?[["화학 섬",300],["이야기",375]]:[["화학 섬 이야기",330]];
+      ctx.font=`bold ${lines.length>1?72:64}px ${FONT}`;
+      for(const[t,y]of lines){ctx.strokeText(t,480,y);ctx.fillText(t,480,y)}
+      ctx.globalAlpha=1}
   }
 }
 // ---- 시작 화면: 이름·셔츠 색 정하기
+// 시작 화면 배경(assets/title/title_bg.webp)과 로고(assets/logo/logo.png): 파일이 있고 불러오기에 성공했을 때만 쓴다.
+function loadTitleArt(){
+  const st=$("start"),h=st.querySelector("h1");
+  const bg=new Image();bg.onload=()=>{if(bg.naturalWidth>0){st.style.backgroundImage="url(assets/title/title_bg.webp)";st.classList.add("hasbg")}};bg.onerror=()=>{};bg.src="assets/title/title_bg.webp";
+  const lg=new Image();lg.onload=()=>{if(lg.naturalWidth>0){lg.alt="화학 섬 이야기";h.textContent="";h.classList.add("logo");h.append(lg)}};lg.onerror=()=>{};lg.src="assets/logo/logo.png";
+}
 function initSetup(){
+  loadTitleArt();
   const box=$("sshirts"),inp=$("snick");let pick=0;
   SHIRTS.forEach((c,i)=>{const b=el("button","sw");b.type="button";b.style.background=c;b.setAttribute("aria-label","셔츠 색 "+(i+1));
     b.onclick=()=>{pick=i;[...box.children].forEach((x,j)=>x.classList.toggle("on",j===i))};box.append(b)});
