@@ -1376,11 +1376,11 @@ function wnd(tx,ty){const gust=.65+.35*Math.sin(time*.42+tx*.06+ty*.04);return M
 const sstep=t=>t*t*(3-2*t);
 const TINT_K=[[0,[96,108,178]],[4.5,[100,112,182]],[5.5,[150,140,196]],[6.5,[255,208,172]],[7.5,[255,238,218]],[9,[255,255,255]],[16,[255,255,255]],[17.5,[255,238,210]],[18.5,[255,196,150]],[19.5,[196,162,190]],[20.5,[118,126,190]],[22,[100,112,182]],[24,[96,108,178]]];
 function dayTint(){
-  const h=S.min/60;
+  const h=gmin()/60;
   for(let i=0;i<TINT_K.length-1;i++)if(h>=TINT_K[i][0]&&h<=TINT_K[i+1][0]){const t=sstep((h-TINT_K[i][0])/(TINT_K[i+1][0]-TINT_K[i][0])),a=TINT_K[i][1],b=TINT_K[i+1][1];return a.map((v,j)=>Math.round(v+(b[j]-v)*t))}
   return[255,255,255];
 }
-function nightAmt(){const h=S.min/60;let n;if(h>=21||h<4.5)n=1;else if(h>=18.5)n=(h-18.5)/2.5;else if(h<6.5)n=1-(h-4.5)/2;else n=0;return sstep(clamp(n,0,1))}
+function nightAmt(){const h=gmin()/60;let n;if(h>=21||h<4.5)n=1;else if(h>=18.5)n=(h-18.5)/2.5;else if(h<6.5)n=1-(h-4.5)/2;else n=0;return sstep(clamp(n,0,1))}
 function mixc(a,b,t){const x=parseInt(a.slice(1),16),y=parseInt(b.slice(1),16),m=(p,q)=>Math.round(p+(q-p)*t);return"#"+((1<<24)|(m(x>>16,y>>16)<<16)|(m((x>>8)&255,(y>>8)&255)<<8)|m(x&255,y&255)).toString(16).slice(1)}
 const SHIM=[];for(let i=0;i<8;i++)SHIM[i]=`rgba(255,255,255,${(i*.012).toFixed(3)})`;
 // 물: 느린 밝기 변화, 드문 반짝임, 해안 부근의 천천히 밀려오는 파도 줄
@@ -1536,7 +1536,7 @@ function makeLocalBackend(){
     else if(m.op==="set"){put(m.p,m.v);touch(m.p)}
   };
   const set=(p,v)=>{put(p,v);touch(p);send({op:"set",p,v:clone(v)});return Promise.resolve()};
-  return{kind:"local",uid:id,now:()=>Date.now(),
+  return{kind:"local",uid:id,auth:id,now:()=>Date.now(),
     set,update:(p,o)=>{for(const k in o)set(p+"/"+k,o[k]);return Promise.resolve()},
     remove:p=>set(p,null),get:async p=>clone(getAt(p)),
     sub:(p,cb)=>{const s={p:norm(p),cb};subs.add(s);setTimeout(()=>{if(subs.has(s))cb(clone(getAt(s.p)))},0);return()=>subs.delete(s)},
@@ -1549,18 +1549,25 @@ async function makeFirebaseBackend(cfg){
   const A=await import(FB_CDN+"firebase-app.js"),AU=await import(FB_CDN+"firebase-auth.js"),DB=await import(FB_CDN+"firebase-database.js");
   const app=A.getApps().length?A.getApp():A.initializeApp(cfg),auth=AU.getAuth(app);
   const cred=await AU.signInAnonymously(auth),db=DB.getDatabase(app);
-  let off=0;DB.onValue(DB.ref(db,".info/serverTimeOffset"),s=>{off=s.val()||0});
-  const R_=p=>DB.ref(db,p);
-  return{kind:"firebase",uid:cred.user.uid,now:()=>Date.now()+off,
-    set:(p,v)=>DB.set(R_(p),v===undefined?null:v),update:(p,o)=>DB.update(R_(p),o),remove:p=>DB.remove(R_(p)),
+  // 서버 시각 오프셋: 첫 값이 올 때까지 잠깐 기다린다(최대 3초). 공동 광장 시각이 이 값에 의존한다.
+  let off=0;
+  const offReady=new Promise(res=>{DB.onValue(DB.ref(db,".info/serverTimeOffset"),s=>{off=s.val()||0;res()})});
+  await Promise.race([offReady,new Promise(r=>setTimeout(r,3000))]);
+  const R_=p=>DB.ref(db,p),warn=e=>console.warn("광장 쓰기 실패:",e&&e.code||e);
+  // 같은 브라우저의 탭은 익명 로그인 UID를 공유한다. 플레이어 ID는 'UID_탭마다 새로 뽑는 문자열'로 탭별로 구분한다.
+  const rb=new Uint8Array(6);(self.crypto||{getRandomValues:a=>a.forEach((_,i)=>a[i]=Math.random()*256)}).getRandomValues(rb);
+  const sid=Array.from(rb,b=>(b%36).toString(36)).join("");
+  return{kind:"firebase",auth:cred.user.uid,uid:cred.user.uid+"_"+sid,now:()=>Date.now()+off,
+    set:(p,v)=>DB.set(R_(p),v===undefined?null:v),update:(p,o)=>DB.update(R_(p),o).catch(warn),remove:p=>DB.remove(R_(p)).catch(warn),
     get:async p=>(await DB.get(R_(p))).val(),
     sub:(p,cb)=>DB.onValue(R_(p),s=>cb(s.val())),
     onDisc:p=>{DB.onDisconnect(R_(p)).remove()},
+    onConn:cb=>DB.onValue(R_(".info/connected"),s=>cb(!!s.val())),
     close:()=>{}};
 }
 
 // ---------- 네트워크 상태 ----------
-const NET={be:null,ch:null,uid:null,ok:false,tok:0,subs:[],players:{},remote:{},raid:null,count:0,acc:0,hb:0,lx:-1,ly:-1,ld:-1,fallback:false,path:""};
+const NET={be:null,ch:null,uid:null,auth:null,ok:false,tok:0,subs:[],players:{},remote:{},raid:null,count:0,acc:0,hb:0,lx:-1,ly:-1,ld:-1,fallback:false,path:""};
 const EMOTES=["👋","😀","😮","👍","❤️","🔥","🧪","❓"];
 const HAIRS=["#7a4a2a","#3a2a22","#c98a3a","#2a2a34"];
 const cleanNick=s=>String(s||"").replace(/[^0-9A-Za-z가-힣ㄱ-ㅎㅏ-ㅣ_ -]/g,"").trim().slice(0,8);
@@ -1581,11 +1588,20 @@ async function netConnect(){
         const n=Object.values(v).filter(p=>p&&be.now()-p.t<STALE).length;ch="c"+i;if(n<CH_MAX)break;
       }
     }
-    NET.ch=ch;NET.uid=be.uid;NET.path=`plaza/${ch}/players/${be.uid}`;
-    await be.set(NET.path,{n:S.flags.nick||"손님",s:S.shirt%5,x:Math.round(P.x),y:Math.round(P.y),d:P.dir,t:be.now(),e:0,et:0});
+    NET.ch=ch;NET.uid=be.uid;NET.auth=be.auth||be.uid;NET.path=`plaza/${ch}/players/${be.uid}`;
+    const node=()=>({n:S.flags.nick||"손님",s:S.shirt%5,x:Math.round(P.x),y:Math.round(P.y),d:P.dir,t:be.now(),e:0,et:0});
+    await be.set(NET.path,node());
     if(dead()){be.remove(NET.path);return}
     be.onDisc(NET.path);
+    // 새로고침·강제 종료로 남은 내 이전 접속 데이터(같은 UID, 20초 넘게 갱신 없음)를 정리한다.
+    try{
+      const all=await be.get(`plaza/${ch}/players`)||{};
+      for(const k in all)if(k!==NET.uid&&(k===NET.auth||k.startsWith(NET.auth+"_"))&&be.now()-((all[k]&&all[k].t)||0)>STALE)be.remove(`plaza/${ch}/players/${k}`);
+    }catch(e){console.warn("이전 접속 데이터 정리 실패:",e)}
+    if(dead()){be.remove(NET.path);return}
     NET.subs=[be.sub(`plaza/${ch}/players`,netPlayers),be.sub(`plaza/${ch}/raid`,netRaid)];
+    // 네트워크가 끊겼다 돌아오면 서버가 onDisconnect 로 지운 내 데이터를 다시 만든다.
+    if(be.onConn){let first=true;const un=be.onConn(c=>{if(first){first=false;return}if(c&&NET.ok&&scene==="plaza"&&NET.be===be){be.set(NET.path,node()).catch(e=>console.warn("재연결 후 복구 실패:",e));be.onDisc(NET.path)}});NET.subs.push(un)}
     if(be.hello)be.hello();
     NET.ok=true;NET.lx=NET.ly=NET.ld=-1;
     toast(be.kind==="local"?"🌐 연습 모드: 같은 브라우저의 다른 탭에서만 서로 보여요.":`🌐 광장 ${ch.slice(1)}번 채널에 연결했어요!`,3800);
@@ -1728,6 +1744,10 @@ function updatePlazaHud(){
   const nm={lobby:"모집 중",p1:"1단계 증기 방어막",p2:"2단계 끓어 넘침",p3:"3단계 가스 과압",won:"클리어!",lost:"실패"}[r.st]||"";
   rh.style.display="block";rh.textContent=`🍲 레이드 ${nm}${lim?` · ${Math.max(0,Math.ceil(lim-e))}초`:""}${isMem(r)?"":" (관전)"}`;
 }
+// 공동 광장 시각: 서버 시각(be.now())에서 계산한다. 저장·전송하는 값이 없고 늦게 들어와도 같은 값이 나온다.
+// 속도는 개인 섬과 같다(실시간 1초 = 게임 2분, 하루 12분). 광장에 있는 동안 개인 시계(S.min)는 멈춰 있다.
+const plazaMin=()=>(NET.be.now()/500)%1440;
+function gmin(){return scene==="plaza"&&NET.ok&&NET.be?plazaMin():S.min}
 function plazaKey(code){const m=/^Digit([1-8])$/.exec(code);if(m){plazaEmote(+m[1]);return true}return false}
 function askNick(cb){
   openWin("🌐 광장 이름 정하기",b=>{
@@ -1864,6 +1884,11 @@ function raidTick(dt){
   const r=NET.raid;
   if(!r){RD.last="";return}
   const now=NET.be.now(),e=(now-r.t0)/1000,key=r.seq+":"+r.st;
+  // 모집 중인 레이드에 남은 내 이전 접속(새로고침 전 탭) 참가자를 정리한다.
+  if(r.st==="lobby"){
+    const old=rMem(r).filter(u=>u!==NET.uid&&(u===NET.auth||u.startsWith(NET.auth+"_"))&&!(NET.players[u]&&now-NET.players[u].t<STALE));
+    if(old.length){if(old.length===rMem(r).length)NET.be.remove(raidPath());else old.forEach(u=>NET.be.remove(`${raidPath()}/mem/${u}`))}
+  }
   if(key!==RD.last){RD.last=key;RD.meter=0;raidOnState(r)}
   if(r.st==="p2"){const s=p2State(r,e);RD.meter=clamp(RD.meter+(s.T>s.Tb?.25:-.25),0,6)}
   if(curWin&&curWin.raid&&RD.liveFn)RD.liveFn();
@@ -2023,8 +2048,8 @@ addEventListener("pagehide",()=>{if(NET.be&&NET.be.close)NET.be.close()});
 // ================= 메인 루프/입력 =================
 function updateHud(){
   $("coin").textContent=`🪙 ${S.coins}`;
-  const h=Math.floor(S.min/60),m=Math.floor(S.min%60);
-  $("clock").textContent=`${S.day}일차 ${h<12?"오전":"오후"} ${((h+11)%12)+1}:${String(m).padStart(2,"0")}`;
+  const pz=scene==="plaza"&&NET.ok,mn=pz?plazaMin():S.min,h=Math.floor(mn/60),m=Math.floor(mn%60);
+  $("clock").textContent=`${pz?"🌐 광장":S.day+"일차"} ${h<12?"오전":"오후"} ${((h+11)%12)+1}:${String(m).padStart(2,"0")}`;
   const id=QORDER.find(i=>S.q[i]!=="done"),tr=$("track");
   if(!id){tr.style.display="none";return}
   const Q=QUESTS[id];tr.style.display="block";
@@ -2042,7 +2067,7 @@ function frame(now){
     waterCd-=dt;iceCd-=dt;for(const k in shakeT)if(shakeT[k]>0)shakeT[k]-=dt;
     for(let i=floaters.length-1;i>=0;i--){floaters[i].a+=dt*1.1;if(floaters[i].a>=1)floaters.splice(i,1)}
     if(!busy()){
-      S.min+=dt*2;if(S.min>=1440){S.min-=1440;newDay()}
+      if(scene!=="plaza"){S.min+=dt*2;if(S.min>=1440){S.min-=1440;newDay()}}
       movePlayer(dt);
       if(scene==="out"){
         const tx=Math.floor(P.x/16),ty=Math.floor(P.y/16);

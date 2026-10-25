@@ -1,0 +1,20 @@
+{
+  "rules": {
+    ".read": false, ".write": false,
+    "plaza": { "$ch": {
+      "players": {
+        ".read": "auth != null",
+        "$pid": {
+          ".write": "auth != null && ($pid === auth.uid || $pid.beginsWith(auth.uid + '_'))",
+          ".validate": "newData.hasChildren(['n','x','y','t'])",
+          "n": { ".validate": "newData.isString() && newData.val().length <= 8" },
+          "x": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000" },
+          "y": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 800" },
+          "t": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": true }
+        }
+      },
+      "raid": { ".read": "auth != null", ".write": "auth != null" }
+    } }
+  }
+}
