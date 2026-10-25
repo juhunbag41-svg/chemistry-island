@@ -101,7 +101,9 @@
   #bBag small,#bMenu small{display:block;font-size:11px;line-height:12px;margin-top:-2px}
   #bBag{right:calc(max(16px,env(safe-area-inset-right)) + var(--act) + 22px);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 14px)}
   #bMenu{right:calc(max(16px,env(safe-area-inset-right)) + 8px);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 14px + var(--act) + 14px)}
-  .landscape.ui-busy #touch .ctl{opacity:0;pointer-events:none}
+  .landscape.ui-busy #pad,.landscape.ui-busy #bBag,.landscape.ui-busy #bMenu{opacity:0;pointer-events:none}
+  .landscape #dlg{right:calc(var(--act) + 44px)}
+  .landscape #bAct{z-index:25}
   .touch.playing #mobcap:not(:empty){display:block}
   #mobcap{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--ctrl) + 12px);z-index:11;pointer-events:none;background:rgba(255,251,234,.94);border:3px solid #9b6b43;border-radius:14px;padding:3px 12px;font:bold 13px "Malgun Gothic",sans-serif;white-space:nowrap;max-width:80vw;overflow:hidden;text-overflow:ellipsis}
   .ui-busy #mobcap{display:none!important}
@@ -917,7 +919,7 @@ function say(who,text){return new Promise(res=>{dl={who,text,opts:null,sel:0,sho
 function ask(who,text,opts){return new Promise(res=>{dl={who,text,opts,sel:0,shown:0,res};showDlg()})}
 function showDlg(){$("dlg").style.display="block";$("dwho").style.display=dl.who?"block":"none";$("dwho").textContent=dl.who;$("dtxt").textContent="";$("dopts").innerHTML="";$("dnext").style.display="none"}
 function dlgFinish(){if(!dl)return;dl.shown=dl.text.length;$("dtxt").textContent=dl.text;
-  if(dl.opts){const o=$("dopts");o.innerHTML="";dl.opts.forEach((t,i)=>{const d=el("div","opt"+(i===dl.sel?" sel":""),`${i+1}. ${t}`);d.onclick=()=>chooseOpt(i);d.onmouseenter=()=>{dl.sel=i;dlgFinish()};o.append(d)})}
+  if(dl.opts){const o=$("dopts");o.innerHTML="";dl.opts.forEach((t,i)=>{const d=el("div","opt"+(i===dl.sel?" sel":""),`${i+1}. ${t}`);d.onclick=()=>chooseOpt(i);d.onmouseenter=()=>{if(!dl||dl.sel===i)return;dl.sel=i;[...o.children].forEach((c,j)=>c.classList.toggle("sel",j===i))};o.append(d)})}
   else $("dnext").style.display="block"}
 function chooseOpt(i){if(!dl||!dl.opts||dl.shown<dl.text.length)return;const r=dl.res;dl=null;$("dlg").style.display="none";r(i)}
 function dlgKey(code){
@@ -1605,7 +1607,16 @@ menu.addEventListener("click",e=>{
   menu.classList.remove("open");
 });
 // 대화창을 눌러 넘기기(선택지는 기존대로 직접 누른다)
-document.getElementById("dlg").addEventListener("click",e=>{if(!st.mob||e.target.closest(".opt"))return;if(dl&&!dl.opts){fire("keydown","KeyE");fire("keyup","KeyE")}});
+// 터치는 pointerup 으로 즉시 처리하고, 뒤따르는 호환용 click 은 무시한다(선택지·대화창 모두).
+{const dlgEl=document.getElementById("dlg"),optsEl=document.getElementById("dopts");let lastTouch=0;
+  const advance=()=>{if(dl&&(!dl.opts||dl.shown<dl.text.length)){fire("keydown","KeyE");fire("keyup","KeyE")}};
+  dlgEl.addEventListener("pointerup",e=>{
+    if(!st.mob||e.pointerType==="mouse")return;
+    const o=e.target.closest&&e.target.closest(".opt");lastTouch=Date.now();
+    if(o){const i=[...optsEl.children].indexOf(o);if(i>=0)chooseOpt(i)}else advance();
+  });
+  dlgEl.addEventListener("click",e=>{if(!st.mob)return;if(Date.now()-lastTouch<600)return;if(e.target.closest(".opt"))return;advance()});
+}
 // ---- 입력이 남지 않도록 하는 안전장치
 function releaseAll(){padRelease();relAct();relBag();relMenu()}
 addEventListener("blur",releaseAll);addEventListener("pagehide",releaseAll);
