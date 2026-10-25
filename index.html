@@ -2124,9 +2124,9 @@ const sleepCut=ms=>new Promise(res=>{const t0=performance.now(),iv=setInterval((
 function setCap(t){const c=$("cap");c.textContent=t||"";c.style.opacity=t?1:0}
 // 샷 3 시작 시점에 접속해 있는 사람(없으면 NPC 실루엣). 연결이 늦어도 컷신은 멈추지 않는다.
 function cutCrew(){
-  const crew=[{n:S.flags.nick||"나",c:SHIRTS[S.shirt%5]}];let real=false;
-  if(NET.ok&&NET.be){const now=NET.be.now();for(const u in NET.players){const p=NET.players[u];if(!p||u===NET.uid||isMine(u)||now-p.t>STALE)continue;crew.push({n:String(p.n||"?").slice(0,8),c:SHIRTS[(p.s|0)%5]});real=true;if(crew.length>=6)break}}
-  if(!real)for(const[n,c]of[["보일","#4a9ee0"],["샤를","#e8802a"],["연구원","#6bc16b"]])crew.push({n,c});
+  const crew=[{n:S.flags.nick||"나",s:S.shirt%5,c:SHIRTS[S.shirt%5]}];let real=false;
+  if(NET.ok&&NET.be){const now=NET.be.now();for(const u in NET.players){const p=NET.players[u];if(!p||u===NET.uid||isMine(u)||now-p.t>STALE)continue;const s=(p.s|0)%5;crew.push({n:String(p.n||"?").slice(0,8),s,c:SHIRTS[s]});real=true;if(crew.length>=6)break}}
+  if(!real)for(const[n,s]of[["보일",1],["샤를",3],["연구원",2]])crew.push({n,s,c:SHIRTS[s]});
   CUT.crew=crew;CUT.real=real;
 }
 async function runIntro(){
@@ -2144,8 +2144,8 @@ function beginIntro(){
   buildPlazaOnce();lastOut=START_POS.slice();
   P.x=PLZ.spawn[0];P.y=PLZ.spawn[1];P.dir=3;
   S.flags.intro=1;TUT.emoted=false;
-  Object.assign(CUT,{on:true,skip:false,t:0,g:0,shot:0,crew:[],real:false,labels:[]});
-  scene="cut";CUR=null;target=null;
+  Object.assign(CUT,{on:true,skip:false,t:0,g:0,shot:0,crew:[],real:false,labels:[],dA:null});
+  scene="cut";CUR=null;target=null;cam.x=cam.y=0;   // 컷신 그리기는 화면 좌표 그대로 쓴다
   document.documentElement.classList.add("cutscene");
   netConnect();   // 컷신이 연결 대기 시간을 가려 준다
   runIntro().catch(e=>console.warn("컷신 오류:",e)).then(finishIntro);
@@ -2171,16 +2171,27 @@ function cutSky(p){
   for(let y=0;y<112;y++)Q(0,y,VW,1,mixc(top,bot,y/112));
   const a=1-p;
   if(a>.02)for(let i=0;i<46;i++){const tw=.35+.65*Math.abs(Math.sin(CUT.g*1.7+i));Q(hh(i,7,1)%VW,hh(i,9,2)%100,1,1,`rgba(255,255,255,${(a*tw).toFixed(2)})`)}
+  // 달(밤) / 수평선의 해(새벽)
+  if(a>.05){for(const[r,al]of[[24,.05],[17,.08],[12,.14]])Cd(200,36,r,`rgba(220,230,255,${(al*a).toFixed(3)})`);Cd(200,36,8,`rgba(242,246,255,${(.95*a).toFixed(2)})`);Cd(197,34,2,`rgba(190,200,225,${(.7*a).toFixed(2)})`);Cd(203,39,1,`rgba(190,200,225,${(.7*a).toFixed(2)})`)}
+  if(p>.4){const k=(p-.4)/.6;for(const[r,al]of[[34,.10],[24,.16],[15,.3]])Cd(160,112,r,`rgba(255,214,150,${(al*k).toFixed(3)})`);Cd(160,112,9,`rgba(255,238,190,${(.9*k).toFixed(2)})`)}
+  // 천천히 흐르는 구름
+  for(let i=0;i<5;i++){const x=((hh(i,3,5)%420)+CUT.g*(2+i*.7))%420-60,y=14+i*16;Q(x,y,46+i*9,3,`rgba(255,255,255,${(.05*(1-p*.4)).toFixed(3)})`);Q(x+10,y-2,26+i*5,2,`rgba(255,255,255,${(.06*(1-p*.4)).toFixed(3)})`)}
 }
 function cutSea(p){
   Q(0,112,VW,VH-112,mixc("#10285a","#4aa0c8",p));
   for(let y=114;y<VH;y+=3){const o=Math.sin(CUT.g*.9+y*.4)*6;for(let x=-12;x<VW;x+=34)Q(x+o+(y%7)*3,y,14,1,`rgba(255,255,255,${((.07+.05*Math.sin(CUT.g+x))*(.4+p)).toFixed(2)})`)}
+  // 달빛이 바다에 비친 길
+  if(p<.6)for(let i=0;i<12;i++){const w=Math.max(2,12-i),x=200+Math.sin(CUT.g*1.4+i)*3;Q(x-w/2,114+i*5,w,1,`rgba(235,240,255,${((.45*(1-i/12))*(1-p)).toFixed(2)})`)}
 }
 // 섬의 실루엣과 중앙 증류솥. 솥 꼭대기 좌표를 돌려준다.
 function cutIsland(cx,base,sc,p){
   const c1=mixc("#0c1a22","#3f7f4a",p*.8+.1),c2=mixc("#14262c","#6db35c",p*.8+.1),w=46*sc;
   Q(cx-w,base-3*sc,w*2,3*sc,c1);Q(cx-w*.8,base-6*sc,w*1.6,3*sc,c2);Q(cx-w*.5,base-9*sc,w,3*sc,c1);
+  Q(cx-w-2,base,w*2+4,1,"rgba(255,255,255,.35)");   // 해안의 물거품
+  Cd(cx-w*.62,base-8*sc,3*sc,c2);Cd(cx+w*.6,base-8*sc,3.4*sc,c2);Cd(cx+w*.42,base-10*sc,2.4*sc,c1);   // 나무 덩어리
+  if(p<.9){const wl=`rgba(255,208,120,${(.95*(1-p)).toFixed(2)})`;Q(cx-w*.38,base-5*sc,2,2,wl);Q(cx+w*.3,base-5*sc,2,2,wl);Q(cx-w*.1,base-6*sc,2,2,wl)}   // 연구소 창문 불빛
   Q(cx-4*sc,base-14*sc,8*sc,6*sc,"#2c2c38");Q(cx-6*sc,base-16*sc,12*sc,3*sc,"#3a3a48");Q(cx-1.5*sc,base-20*sc,3*sc,5*sc,"#3a3a48");
+  Q(cx-4*sc,base-14*sc,8*sc,1,"#4a4a5c");Q(cx-3*sc,base-12*sc,2*sc,2*sc,p<.9?"rgba(255,150,70,.85)":"#4a4a5c");   // 솥 입구의 불빛
   return{x:cx,y:base-20*sc};
 }
 function cutSteam(x,y,size,yel,fl){
@@ -2189,18 +2200,34 @@ function cutSteam(x,y,size,yel,fl){
     Cd(xx,yy,r,`rgba(255,255,${Math.round(255-yel*120)},${al.toFixed(2)})`);
   }
 }
-function cutFigure(x,fy,col,label){
-  const sil=mixc(col,"#0b1020",.4);
+// 게임 속 캐릭터 스프라이트(뒷모습)를 밤색으로 살짝 어둡게 칠해 쓴다. 스프라이트가 없으면 단색 실루엣으로 대체한다.
+const CUT_TINT={};
+function cutSprite(s){
+  const C=SPR.ok&&SPR.man&&SPR.man.chars,im=C&&SPR.img["player"+s];if(!im)return null;
+  if(!CUT_TINT[s]){const c=document.createElement("canvas");c.width=C.fw;c.height=C.fh;const x=c.getContext("2d");
+    x.drawImage(im,0,3*C.fh,C.fw,C.fh,0,0,C.fw,C.fh);x.globalCompositeOperation="source-atop";x.fillStyle="rgba(14,20,52,.30)";x.fillRect(0,0,C.fw,C.fh);CUT_TINT[s]=c}
+  return{c:CUT_TINT[s],C};
+}
+function cutFigure(x,fy,m,label){
+  const sp=cutSprite(m.s);
+  if(sp){Q(x-7,fy-2,14,3,"rgba(0,0,0,.28)");g.drawImage(sp.c,Math.round(x-sp.C.ax),Math.round(fy-sp.C.ay));if(label)CUT.labels.push([x,fy-sp.C.ay-5,label]);return}
+  const sil=mixc(m.c,"#0b1020",.4);
   Q(x-4,fy-14,8,11,sil);Q(x-3,fy-3,2,3,"#0b1020");Q(x+1,fy-3,2,3,"#0b1020");Cd(x,fy-18,4,mixc("#e8c9a8","#0b1020",.45));
   if(label)CUT.labels.push([x,fy-27,label]);
 }
+function cutLantern(x,y){
+  const f=.8+.2*Math.sin(CUT.g*7+x);
+  Q(x,y-16,1,16,"#3a2a22");Q(x-2,y-20,5,5,"#ffcf70");
+  for(const[r,al]of[[22,.05],[14,.08],[8,.13]])Cd(x,y-18,r,`rgba(255,190,100,${(al*f).toFixed(3)})`);
+}
 function cutDeck(top,showNames){
   const bob=Math.round(Math.sin(CUT.g*1.3));
-  Q(0,top+bob,VW,VH-top,"#2a1d18");Q(0,top+bob,VW,4,"#5a4030");
+  Q(0,top+bob,VW,VH-top,"#2a1d18");Q(0,top+bob,VW,4,"#5a4030");Q(0,top+bob,VW,1,"#7a5a40");
   for(let x=0;x<VW;x+=16)Q(x,top+bob+4,2,10,"#4a3426");
-  for(let y=top+18;y<VH;y+=8)Q(0,y+bob,VW,1,"#3a2a22");
-  const n=CUT.crew.length,sp=Math.min(24,Math.floor(150/Math.max(1,n)));
-  CUT.crew.forEach((m,i)=>cutFigure(160+(i-(n-1)/2)*sp,top+bob+22,m.c,showNames?m.n:null));
+  for(let y=top+18,i=0;y<VH;y+=8,i++){Q(0,y+bob,VW,7,i%2?"#2e2019":"#332319");Q(0,y+bob,VW,1,"#3f2d22")}
+  cutLantern(36,top+bob+4);cutLantern(284,top+bob+4);
+  const n=CUT.crew.length,sp=Math.min(30,Math.floor(168/Math.max(1,n)));
+  CUT.crew.forEach((m,i)=>cutFigure(160+(i-(n-1)/2)*sp,top+bob+22,m,showNames?m.n:null));
 }
 function cutRender(){
   CUT.labels=[];
@@ -2216,11 +2243,12 @@ function cutRender(){
   }else if(s===3){
     const p=clamp(.25+t/8*.75,0,1);
     cutSky(p);cutSea(p);const pot=cutIsland(160,113,1.5,p);cutSteam(pot.x,pot.y,.55,.6,.8);
-    Q(116,113,24,3,"#8a5a34");
-    const wv=Math.sin(G*6)>0;Q(125,101,6,10,"#f4f4f4");Cd(128,97,3,"#f0c8a0");Q(125,93,6,2,"#d8d8e0");Q(132,wv?92:97,2,6,"#f4f4f4");
-    cutDeck(170,false);
+    Q(112,113,30,3,"#8a5a34");Q(112,116,30,1,"#5a3a24");Q(114,116,2,5,"#5a3a24");Q(138,116,2,5,"#5a3a24");   // 부두
+    if(!CUT.dA){CUT.dA=mkAnim(3);CUT.dA.pose="wave";CUT.dA.poseT=999}
+    person(126,113,0,0,false,PAL_D,CUT.dA);   // 손을 흔드는 돌턴 박사(게임 속 스프라이트)
+    cutDeck(176,false);
   }else{
-    cutSky(1);cutSea(1);
+    cutSky(1);cutSea(1);cutIsland(160,115,.8,1);
     const k=clamp(t/3,0,1);
     for(let i=0;i<16;i++){const a=i/16*6.283+G*.5,R_=(1-k)*70+4;Cd(160+Math.cos(a)*R_,90+Math.sin(a)*R_*.6,Math.round(4+k*6),"rgba(255,255,255,.35)")}
   }
