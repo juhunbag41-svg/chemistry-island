@@ -14,6 +14,9 @@
   #clock{right:12px;top:10px}
   #track{right:12px;top:48px;max-width:300px;font-size:13px;font-weight:normal;line-height:1.5;display:none}
   #hint{left:12px;bottom:10px;font-size:12px;font-weight:normal;opacity:.9}
+  #netpill{left:12px;top:46px;display:none;font-size:13px}
+  #raidhud{left:50%;transform:translateX(-50%);top:10px;display:none;font-size:13px;white-space:nowrap}
+  #mobemo{display:none}
   #toast{position:absolute;left:50%;top:56px;transform:translateX(-50%);background:rgba(60,40,25,.88);color:#fff;border-radius:14px;padding:7px 18px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:pre-wrap;text-align:center;max-width:620px}
   #dlg{position:absolute;left:90px;right:90px;bottom:18px;background:#fffbea;border:4px solid #9b6b43;border-radius:20px;padding:22px 26px 14px;display:none;box-shadow:0 4px 0 rgba(0,0,0,.3)}
   #dwho{position:absolute;left:22px;top:-18px;background:#6cc070;color:#fff;font-weight:bold;border:3px solid #3f8f48;border-radius:14px;padding:2px 16px;font-size:15px}
@@ -64,6 +67,10 @@
   .mob .pill{font-size:12px;padding:2px 10px;border-width:2px}
   .mob #coin{left:max(8px,env(safe-area-inset-left));top:max(6px,env(safe-area-inset-top))}
   .mob #clock{right:max(8px,env(safe-area-inset-right));top:max(6px,env(safe-area-inset-top))}
+  .mob #netpill{left:max(8px,env(safe-area-inset-left));top:calc(max(6px,env(safe-area-inset-top)) + 26px);font-size:11px}
+  .mob #raidhud{top:calc(max(6px,env(safe-area-inset-top)) + 26px);font-size:11px}
+  .inplaza #mobemo{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+  #mobemo button{flex:1 0 20%;min-height:44px;font-size:22px;background:#fff4d2;border:2px solid #9b6b43;border-radius:10px}
   .mob #track{right:max(8px,env(safe-area-inset-right));top:calc(max(6px,env(safe-area-inset-top)) + 30px);max-width:min(58vw,300px);font-size:12px}
   .mob #toast{top:calc(max(6px,env(safe-area-inset-top)) + 34px);max-width:88vw;font-size:13px;z-index:40}
   .mob #dlg{left:8px;right:8px;bottom:calc(var(--ctrl) + 8px);padding:16px 16px 10px;z-index:20;touch-action:manipulation}
@@ -118,6 +125,8 @@
   <div id="coin" class="pill">🪙 0</div>
   <div id="clock" class="pill">1일차 오전 8:00</div>
   <div id="track" class="pill"></div>
+  <div id="netpill" class="pill"></div>
+  <div id="raidhud" class="pill"></div>
   <div id="hint" class="pill">방향키/WASD 이동 · E 상호작용 · I 보관함 · Q 일지 · M 지도 · H 도움말</div>
   <div id="toast"></div>
   <div id="dlg"><div id="dwho"></div><div id="dtxt"></div><div id="dopts"></div><div id="dnext">▼</div></div>
@@ -137,6 +146,7 @@
   </div>
   <div id="mobcap"></div>
   <div id="mobmenu">
+    <div id="mobemo"><button data-m="Digit1">👋</button><button data-m="Digit2">😀</button><button data-m="Digit3">😮</button><button data-m="Digit4">👍</button><button data-m="Digit5">❤️</button><button data-m="Digit6">🔥</button><button data-m="Digit7">🧪</button><button data-m="Digit8">❓</button></div>
     <button class="btn" data-m="KeyQ">📖 연구 일지 (퀘스트·도감)</button>
     <button class="btn" data-m="KeyM">🗺️ 섬 지도</button>
     <button class="btn" data-m="KeyH">❓ 도움말</button>
@@ -709,6 +719,7 @@ function buildOut(){
   add({k:"notice",tx:47,ty:21,tw:2,th:1,sy:22*16},47*16,21*16,32,16,"축제 게시판 보기",()=>winEvents());solid(47,21,2,1);
   for(const bx of[48,56])add({k:"booth",tx:bx,ty:24,tw:2,th:1,sy:25*16},bx*16,24*16,32,16,"전시 부스",()=>msg("각 부스에 화학 실험 모형이 전시되어 있다."));
   solid(48,24,2,1);solid(56,24,2,1);
+  add({k:"plz",sub:"portal",tx:53,ty:22,tw:2,th:2,sy:24*16},53*16,22*16,32,32,"🌐 광장 포털 들어가기",()=>askEnterPlaza());solid(53,22,2,2);
   for(let x=46;x<=60;x+=2)OUT.objs.push({k:"flag",tx:x,ty:16,tw:1,th:1,sy:16*16-200,c:x});
   // 노드
   const inRange=(x1,y1,x2,y2,types,cnt,mk2)=>{let n=0,tries=0;while(n<cnt&&tries<4000){tries++;const x=x1+Math.floor(rnd()*(x2-x1+1)),y=y1+Math.floor(rnd()*(y2-y1+1));if(!inb(x,y)||OUT.occ[ti(x,y)]||OUT.res[ti(x,y)]||!types.includes(tileAt(x,y)))continue;OUT.occ[ti(x,y)]=1;mk2(x,y,n);n++}};
@@ -792,6 +803,7 @@ function blockedOut(tx,ty){
   return false;
 }
 function blockedT(tx,ty){
+  if(scene==="plaza")return blockedPlaza(tx,ty);
   if(scene==="out")return blockedOut(tx,ty);
   if(tx<0||ty<0||tx>=CUR.w||ty>=CUR.h)return true;
   return !!CUR.solid[ty*CUR.w+tx];
@@ -856,6 +868,8 @@ function pickTarget(){
       if(t===T.RIVER)best={rx:tx*16,ry:ty*16,rw:16,rh:16,label:()=>"물 뜨기",act:()=>scoopWater()};
       else if(t===T.WATER)best={rx:tx*16,ry:ty*16,rw:16,rh:16,label:()=>"바다 구경하기",act:()=>msg("짠 바닷물이다. 마시거나 실험에 쓰기엔 맞지 않아. 소금은 해변 바위에서 얻자!")};
       else if(t===T.POND)best={rx:tx*16,ry:ty*16,rw:16,rh:16,label:()=>"얼음 캐기",act:()=>chipIce()}}
+  }else if(scene==="plaza"){
+    for(const it of PLZ.inter)test(it);
   }else{
     for(const fu of CUR.furn)if(fu.act)test({rx:fu.tx*16,ry:fu.ty*16,rw:fu.tw*16,rh:fu.th*16,label:()=>fu.label,act:fu.act});
     if(CUR.id==="shop")test({rx:KEEPER.x-8,ry:KEEPER.y-20,rw:16,rh:24,label:()=>"상인 아보가드로와 이야기하기",act:()=>shopTalk()});
@@ -899,7 +913,7 @@ function enterDoor(d){
 function exitHouse(){fadeTo(()=>{scene="out";P.x=lastOut[0];P.y=lastOut[1];P.dir=0;camSnap()})}
 function camSnap(){updateCam(1e3)}
 function updateCam(dt){
-  if(scene==="out"){const tx=clamp(P.x-VW/2,0,MW*16-VW),ty=clamp(P.y-VH/2-6,0,MH*16-VH);cam.x+=(tx-cam.x)*Math.min(1,dt*6);cam.y+=(ty-cam.y)*Math.min(1,dt*6)}
+  if(scene==="out"||scene==="plaza"){const pz=scene==="plaza",tx=clamp(P.x-VW/2,0,(pz?PW:MW)*16-VW),ty=clamp(P.y-VH/2-6,0,(pz?PH:MH)*16-VH);cam.x+=(tx-cam.x)*Math.min(1,dt*6);cam.y+=(ty-cam.y)*Math.min(1,dt*6)}
   else{cam.x=-((VW-CUR.w*16)>>1);cam.y=-(((VH-CUR.h*16)>>1)-4)}
 }
 function newDay(quiet){
@@ -1205,7 +1219,7 @@ function winMap(){
   },560);
 }
 function winHelp(){
-  openWin("❓ 도움말",b=>b.append(el("div","",`<b>이동</b> 방향키 / WASD<br><b>상호작용</b> E · Space · Enter (바라보는 방향의 대상)<br><b>보관함</b> I　<b>일지</b> Q　<b>지도</b> M　<b>닫기</b> Esc<br><br>🌿 <b>모으기</b> 강물(물), 사탕수수(설탕), 해변 바위(소금), 모래 X표(모래), 나무 흔들기(나뭇가지), 꽃, 반짝이는 종이<br>🔨 <b>만들기</b> 공방 제작대 / 요리방 용액 실험 / 기체 실험대<br>🛍️ <b>팔기·사기</b> 상점 계산대<br>🪴 <b>꾸미기</b> 보관함에서 꾸미기 아이템 선택 → ‘내려놓기’ (놓은 것은 E로 다시 거둘 수 있어요)<br>😴 <b>잠자기</b> 내 집 침대 → 새 하루, 재료 다시 자람<br><br>돌턴 박사는 섬을 산책하기도 해요. 일지(Q)에서 지금 어디쯤 있는지 알 수 있어요.`),360));
+  openWin("❓ 도움말",b=>b.append(el("div","",`<b>이동</b> 방향키 / WASD<br><b>상호작용</b> E · Space · Enter (바라보는 방향의 대상)<br><b>보관함</b> I　<b>일지</b> Q　<b>지도</b> M　<b>닫기</b> Esc<br><br>🌿 <b>모으기</b> 강물(물), 사탕수수(설탕), 해변 바위(소금), 모래 X표(모래), 나무 흔들기(나뭇가지), 꽃, 반짝이는 종이<br>🔨 <b>만들기</b> 공방 제작대 / 요리방 용액 실험 / 기체 실험대<br>🛍️ <b>팔기·사기</b> 상점 계산대<br>🪴 <b>꾸미기</b> 보관함에서 꾸미기 아이템 선택 → ‘내려놓기’ (놓은 것은 E로 다시 거둘 수 있어요)<br>😴 <b>잠자기</b> 내 집 침대 → 새 하루, 재료 다시 자람<br>🌐 <b>광장</b> 동쪽 이벤트 광장의 포털 → 공용 광장 (숫자 1~8 이모티콘, 채팅 없음). 가운데 솥 골렘과 협동 레이드: 증기 압력 내림 → 끓는점 오름 → 돌턴의 분압 법칙<br><br>돌턴 박사는 섬을 산책하기도 해요. 일지(Q)에서 지금 어디쯤 있는지 알 수 있어요.`),360));
 }
 
 // ================= 그리기 =================
@@ -1286,6 +1300,7 @@ function drawObj(o,fr){
   if(SPR.ok&&drawObjSprite(o,fr))return;
   const x=o.tx*16,y=o.ty*16;
   switch(o.k){
+  case"plz":drawPlzObj(o);break;
   case"tree":{
     const sw=Math.round(wnd(o.tx,o.ty)*1.3),sh=shakeT[o.id]>0?Math.round(Math.sin(time*45)*1.5):0;
     R(x+1,y+12,14,3,"rgba(0,0,0,.18)");R(x+6,y+2,4,13,"#8a5a34");R(x+6,y+2,1,13,"#a8723f");
@@ -1412,7 +1427,7 @@ function drawFireflies(){
 }
 function render(){
   const fr=Math.floor(time*1.8)%4;labels.length=0;
-  g.fillStyle=scene==="out"?"#58bfe0":"#2d2a36";g.fillRect(0,0,VW,VH);
+  g.fillStyle=scene==="out"||scene==="plaza"?"#58bfe0":"#2d2a36";g.fillRect(0,0,VW,VH);
   const dr=[];
   if(scene==="out"){
     const x0=Math.max(0,cam.x>>4),x1=Math.min(MW-1,(cam.x+VW)>>4),y0=Math.max(0,cam.y>>4),y1=Math.min(MH-1,(cam.y+VH)>>4);
@@ -1425,6 +1440,8 @@ function render(){
     for(const o of OUT.objs){const px=o.tx*16,py=o.ty*16;if(px+o.tw*16+24<cam.x||px-24>cam.x+VW||py+o.th*16+16<cam.y||py-(o.k==="bld"?16:40)>cam.y+VH)continue;dr.push([o.sy,()=>drawObj(o,fr)])}
     for(const p of S.placed)dr.push([(p.ty+1)*16,()=>drawPlaced(p)]);
     dr.push([D.y,()=>person(D.x,D.y,D.dir,D.fr,D.moving,PAL_D,ANIM.d)]);
+  }else if(scene==="plaza"){
+    plazaRender(fr,dr);
   }else{
     const I=CUR,ox=0,oy=0;
     if(SPR.ok&&SPR.rect.interior)drawInteriorBase(I);else{
@@ -1440,13 +1457,14 @@ function render(){
   }
   dr.push([P.y+.5,()=>person(P.x,P.y,P.dir,P.fr,P.moving&&!busy(),palP(),ANIM.p)]);
   dr.sort((a,b)=>a[0]-b[0]);dr.forEach(d=>d[1]());
-  {const c=dayTint(),m=scene==="out"?1:.4,r=Math.round(255+(c[0]-255)*m),gg=Math.round(255+(c[1]-255)*m),bb=Math.round(255+(c[2]-255)*m);
+  {const c=dayTint(),m=scene==="out"||scene==="plaza"?1:.4,r=Math.round(255+(c[0]-255)*m),gg=Math.round(255+(c[1]-255)*m),bb=Math.round(255+(c[2]-255)*m);
     if(r<255||gg<255||bb<255){g.globalCompositeOperation="multiply";g.fillStyle=`rgb(${r},${gg},${bb})`;g.fillRect(0,0,VW,VH);g.globalCompositeOperation="source-over"}}
   if(scene==="out"){drawLights();drawFireflies()}
   ctx.imageSmoothingEnabled=false;ctx.drawImage(wc,0,0,VW*SC,VH*SC);
   // 라벨/프롬프트
   ctx.textAlign="center";ctx.font=`bold 13px ${FONT}`;ctx.lineJoin="round";
   for(const[lx,ly,t]of labels){const sx=(lx-cam.x)*SC,sy=(ly-cam.y)*SC;ctx.lineWidth=4;ctx.strokeStyle="rgba(60,40,25,.85)";ctx.strokeText(t,sx,sy);ctx.fillStyle="#fff7d6";ctx.fillText(t,sx,sy)}
+  if(scene==="plaza")plazaOverlay();
   if(scene==="out"&&Math.hypot(P.x-D.x,P.y-D.y)<110){const sx=(D.x-cam.x)*SC,sy=(D.y-cam.y-34)*SC;ctx.lineWidth=4;ctx.strokeStyle="rgba(60,40,25,.85)";ctx.strokeText("돌턴 박사",sx,sy);ctx.fillStyle="#c8e8ff";ctx.fillText("돌턴 박사",sx,sy)}
   if(scene==="shop"&&true){const sx=(KEEPER.x-cam.x)*SC,sy=(KEEPER.y-cam.y-27)*SC;ctx.lineWidth=4;ctx.strokeStyle="rgba(60,40,25,.85)";ctx.strokeText("아보가드로",sx,sy);ctx.fillStyle="#ffe8b0";ctx.fillText("아보가드로",sx,sy)}
   if(target&&!busy()){
@@ -1478,6 +1496,530 @@ function drawPlaced(p){
   else{R(x+4,y+11,8,4,"#c08850");R(x+4,y+4,8,8,"#ffb86a");R(x+5,y+5,6,6,"#ffd89a");if(Math.floor(time*3)%2)R(x+7,y+7,2,2,"#fff4d0")}
 }
 
+// ================= 광장 멀티플레이 =================
+// 개인 섬(S, localStorage)과 모두가 만나는 광장을 분리한다. 광장에서 공유하는 것은 위치·이모티콘·레이드 상태뿐이다.
+// 네트워크는 Firebase Realtime Database(무료)를 쓴다. FIREBASE_CONFIG 가 비어 있거나 연결에 실패하면
+// 같은 브라우저의 다른 탭끼리만 만나는 '연습 모드'로 동작하므로, 설정 없이도 게임은 깨지지 않는다.
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD_anxGanaDrUqgKke1Kh0RiLAtL-1RkG4",
+  authDomain: "chemistry-island.firebaseapp.com",
+  databaseURL: "https://chemistry-island-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "chemistry-island",
+  storageBucket: "chemistry-island.firebasestorage.app",
+  messagingSenderId: "588038351221",
+  appId: "1:588038351221:web:fc73f97416ac845c4a0b3c"
+};
+const FB_CDN="https://www.gstatic.com/firebasejs/10.14.1/";
+const CH_N=5,CH_MAX=30,STALE=20000;
+
+// ---------- 백엔드 1: 연습 모드(같은 브라우저 탭끼리) ----------
+function makeLocalBackend(){
+  const id="L"+Math.random().toString(36).slice(2,10);
+  let bc=null;try{bc=new BroadcastChannel("chemisle_plaza_v1")}catch(e){}
+  let tree={};const subs=new Set(),disc=[];
+  const keys=p=>String(p).split("/").filter(Boolean),norm=p=>keys(p).join("/");
+  const clone=v=>v===null||v===undefined?null:JSON.parse(JSON.stringify(v));
+  const prune=o=>{for(const k of Object.keys(o)){const v=o[k];if(v&&typeof v==="object"){prune(v);if(!Object.keys(v).length)delete o[k]}else if(v===null||v===undefined)delete o[k]}};
+  const getAt=p=>{let n=tree;for(const k of keys(p)){if(!n||typeof n!=="object"||!(k in n))return null;n=n[k]}return n};
+  function put(p,v){
+    const ks=keys(p);if(!ks.length){tree=v&&typeof v==="object"?clone(v):{};return}
+    let n=tree;for(let i=0;i<ks.length-1;i++){if(!n[ks[i]]||typeof n[ks[i]]!=="object")n[ks[i]]={};n=n[ks[i]]}
+    const last=ks[ks.length-1];if(v===null||v===undefined)delete n[last];else n[last]=clone(v);prune(tree);
+  }
+  const merge=(a,b)=>{for(const k in b){if(b[k]&&typeof b[k]==="object"){if(!a[k]||typeof a[k]!=="object")a[k]={};merge(a[k],b[k])}else a[k]=b[k]}};
+  const touch=p=>{p=norm(p);for(const s of subs)if(p.startsWith(s.p)||s.p.startsWith(p)){try{s.cb(clone(getAt(s.p)))}catch(e){console.error(e)}}};
+  const send=m=>{m.from=id;try{bc&&bc.postMessage(m)}catch(e){}};
+  if(bc)bc.onmessage=ev=>{
+    const m=ev.data;if(!m||m.from===id)return;
+    if(m.op==="hello")send({op:"state",to:m.from,tree});
+    else if(m.op==="state"){if(m.to===id){merge(tree,m.tree||{});touch("")}}
+    else if(m.op==="set"){put(m.p,m.v);touch(m.p)}
+  };
+  const set=(p,v)=>{put(p,v);touch(p);send({op:"set",p,v:clone(v)});return Promise.resolve()};
+  return{kind:"local",uid:id,now:()=>Date.now(),
+    set,update:(p,o)=>{for(const k in o)set(p+"/"+k,o[k]);return Promise.resolve()},
+    remove:p=>set(p,null),get:async p=>clone(getAt(p)),
+    sub:(p,cb)=>{const s={p:norm(p),cb};subs.add(s);setTimeout(()=>{if(subs.has(s))cb(clone(getAt(s.p)))},0);return()=>subs.delete(s)},
+    onDisc:p=>{disc.push(p)},
+    close:()=>{for(const p of disc)set(p,null)},
+    hello:()=>send({op:"hello"})};
+}
+// ---------- 백엔드 2: Firebase Realtime Database ----------
+async function makeFirebaseBackend(cfg){
+  const A=await import(FB_CDN+"firebase-app.js"),AU=await import(FB_CDN+"firebase-auth.js"),DB=await import(FB_CDN+"firebase-database.js");
+  const app=A.getApps().length?A.getApp():A.initializeApp(cfg),auth=AU.getAuth(app);
+  const cred=await AU.signInAnonymously(auth),db=DB.getDatabase(app);
+  let off=0;DB.onValue(DB.ref(db,".info/serverTimeOffset"),s=>{off=s.val()||0});
+  const R_=p=>DB.ref(db,p);
+  return{kind:"firebase",uid:cred.user.uid,now:()=>Date.now()+off,
+    set:(p,v)=>DB.set(R_(p),v===undefined?null:v),update:(p,o)=>DB.update(R_(p),o),remove:p=>DB.remove(R_(p)),
+    get:async p=>(await DB.get(R_(p))).val(),
+    sub:(p,cb)=>DB.onValue(R_(p),s=>cb(s.val())),
+    onDisc:p=>{DB.onDisconnect(R_(p)).remove()},
+    close:()=>{}};
+}
+
+// ---------- 네트워크 상태 ----------
+const NET={be:null,ch:null,uid:null,ok:false,tok:0,subs:[],players:{},remote:{},raid:null,count:0,acc:0,hb:0,lx:-1,ly:-1,ld:-1,fallback:false,path:""};
+const EMOTES=["👋","😀","😮","👍","❤️","🔥","🧪","❓"];
+const HAIRS=["#7a4a2a","#3a2a22","#c98a3a","#2a2a34"];
+const cleanNick=s=>String(s||"").replace(/[^0-9A-Za-z가-힣ㄱ-ㅎㅏ-ㅣ_ -]/g,"").trim().slice(0,8);
+
+async function netConnect(){
+  const tok=++NET.tok,dead=()=>tok!==NET.tok||scene!=="plaza";
+  try{
+    if(!NET.be){
+      let be=null;
+      if(FIREBASE_CONFIG){try{be=await makeFirebaseBackend(FIREBASE_CONFIG)}catch(e){console.warn("Firebase 연결 실패, 연습 모드로 전환합니다:",e);NET.fallback=true}}
+      NET.be=be||makeLocalBackend();
+    }
+    if(dead())return;
+    const be=NET.be;let ch="c1";
+    if(be.kind==="firebase"){
+      for(let i=1;i<=CH_N;i++){
+        const v=await be.get(`plaza/c${i}/players`)||{};if(dead())return;
+        const n=Object.values(v).filter(p=>p&&be.now()-p.t<STALE).length;ch="c"+i;if(n<CH_MAX)break;
+      }
+    }
+    NET.ch=ch;NET.uid=be.uid;NET.path=`plaza/${ch}/players/${be.uid}`;
+    await be.set(NET.path,{n:S.flags.nick||"손님",s:S.shirt%5,x:Math.round(P.x),y:Math.round(P.y),d:P.dir,t:be.now(),e:0,et:0});
+    if(dead()){be.remove(NET.path);return}
+    be.onDisc(NET.path);
+    NET.subs=[be.sub(`plaza/${ch}/players`,netPlayers),be.sub(`plaza/${ch}/raid`,netRaid)];
+    if(be.hello)be.hello();
+    NET.ok=true;NET.lx=NET.ly=NET.ld=-1;
+    toast(be.kind==="local"?"🌐 연습 모드: 같은 브라우저의 다른 탭에서만 서로 보여요.":`🌐 광장 ${ch.slice(1)}번 채널에 연결했어요!`,3800);
+  }catch(e){console.warn("광장 연결 오류:",e);toast("광장에 연결하지 못했어요. 잠시 뒤 다시 들어와 주세요.",4500)}
+}
+function netLeave(){
+  NET.tok++;for(const u of NET.subs){try{u()}catch(e){}}NET.subs=[];
+  if(NET.ok&&NET.be&&NET.path){try{NET.be.remove(NET.path)}catch(e){}}
+  NET.ok=false;NET.players={};NET.remote={};NET.raid=null;NET.count=0;PLZ.myEmo=null;RD.liveFn=null;RD.last="";
+}
+function netPlayers(v){
+  const now=NET.be.now(),cur=v||{};NET.players=cur;let cnt=0;
+  for(const uid in cur){
+    const p=cur[uid];if(!p||typeof p.x!=="number")continue;
+    if(uid!==NET.uid&&now-p.t>STALE)continue;
+    cnt++;if(uid===NET.uid)continue;
+    let r=NET.remote[uid];
+    if(!r)r=NET.remote[uid]={x:p.x,y:p.y,tx:p.x,ty:p.y,d:0,n:"",s:0,et:p.et||0,emo:null,anim:mkAnim(Object.keys(NET.remote).length+2)};
+    r.tx=p.x;r.ty=p.y;r.d=(p.d|0)%4;r.n=String(p.n||"?").slice(0,8);r.s=(p.s|0)%5;
+    if(p.et&&p.et!==r.et){r.et=p.et;if(p.e>=1&&p.e<=8)r.emo={id:p.e,t:time}}
+  }
+  for(const uid in NET.remote)if(!cur[uid]||now-cur[uid].t>STALE)delete NET.remote[uid];
+  NET.count=cnt;
+}
+function netSend(dt){
+  const be=NET.be,x=Math.round(P.x),y=Math.round(P.y),d=P.dir,changed=x!==NET.lx||y!==NET.ly||d!==NET.ld;
+  NET.acc+=dt;
+  if(changed){
+    if(NET.acc>=.2){NET.acc=0;NET.hb=0;NET.lx=x;NET.ly=y;NET.ld=d;be.update(NET.path,{x,y,d,t:be.now()})}
+  }else{NET.hb+=dt;if(NET.hb>=5){NET.hb=0;be.update(NET.path,{t:be.now()})}}
+}
+function plazaEmote(i){
+  if(!NET.ok)return;
+  PLZ.myEmo={id:i,t:time};NET.be.update(NET.path,{e:i,et:NET.be.now()+i});
+}
+function remotePal(r){return{skin:"#ffd9b8",hair:HAIRS[r.s%4],top:SHIRTS[r.s],bottom:"#3d5a80",key:"player"+r.s}}
+
+// ---------- 광장 맵 ----------
+const PW=50,PH=34;
+const PLZ={built:false,tiles:new Uint8Array(PW*PH),solid:new Uint8Array(PW*PH),objs:[],inter:[],ground:null,gsp:null,spawn:[25*16,25*16+8],hud:0,myEmo:null};
+const HINT_OUT=$("hint").textContent,HINT_PLAZA="방향키/WASD 이동 · E 상호작용 · 숫자 1~8 이모티콘 · I 보관함 · H 도움말";
+const ptile=(x,y)=>x<0||y<0||x>=PW||y>=PH?0:PLZ.tiles[y*PW+x];
+function buildPlazaOnce(){
+  if(PLZ.built)return;PLZ.built=true;
+  const Tl=PLZ.tiles,rnd=mulberry(777),idx=(x,y)=>y*PW+x;
+  const cx=25,cy=16.5,rx=23,ry=14.5;
+  for(let y=0;y<PH;y++)for(let x=0;x<PW;x++){const dx=(x+.5-cx)/rx,dy=(y+.5-cy)/ry;Tl[idx(x,y)]=dx*dx+dy*dy<1?T.GRASS:T.WATER}
+  const beach=[];
+  for(let y=0;y<PH;y++)for(let x=0;x<PW;x++)if(Tl[idx(x,y)]===T.GRASS){let n=false;for(let dy=-2;dy<=2&&!n;dy++)for(let dx=-2;dx<=2;dx++)if(ptile(x+dx,y+dy)===T.WATER){n=true;break}if(n)beach.push(idx(x,y))}
+  beach.forEach(i=>Tl[i]=T.SAND);
+  for(let y=9;y<=24;y++)for(let x=13;x<=36;x++)Tl[idx(x,y)]=T.PLAZA;
+  for(let y=25;y<=26;y++)for(let x=24;x<=25;x++)Tl[idx(x,y)]=T.PATH;
+  for(let y=27;y<=31;y++)for(let x=24;x<=25;x++)Tl[idx(x,y)]=T.DECK;
+  const solid=(x,y,w=1,h=1)=>{for(let j=0;j<h;j++)for(let i=0;i<w;i++)if(x+i>=0&&y+j>=0&&x+i<PW&&y+j<PH)PLZ.solid[idx(x+i,y+j)]=1};
+  const occ=new Uint8Array(PW*PH),res=(x1,y1,x2,y2)=>{for(let y=y1;y<=y2;y++)for(let x=x1;x<=x2;x++)occ[idx(x,y)]=1};
+  const add=(o,rx_,ry_,rw,rh,label,act,sol=true)=>{PLZ.objs.push(o);if(sol)solid(o.tx,o.ty,o.tw,o.th);res(o.tx,o.ty,o.tx+o.tw-1,o.ty+o.th-1);if(label)PLZ.inter.push({rx:rx_,ry:ry_,rw,rh,label,act})};
+  // 솥 골렘(레이드)
+  add({k:"plz",sub:"golem",tx:22,ty:11,tw:4,th:3,sy:14*16},22*16,11*16,64,48,()=>NET.ok?raidLabel():"🍲 광장에 연결 중…",()=>winRaid());
+  // 안내판·부스·공급상자
+  add({k:"notice",tx:15,ty:12,tw:2,th:1,sy:13*16},15*16,12*16,32,16,"광장 안내판 보기",()=>msg("🌐 화학 섬 광장\n\n• 방향키/WASD 이동, 숫자 1~8 이모티콘 (👋😀😮👍❤️🔥🧪❓)\n• 가운데 ‘솥 골렘’에게 E를 누르면 레이드를 모집할 수 있어요.\n• 설탕·소금은 섬에서 모아 올 수 있고, 광장 상자에서도 레이드 키트를 받을 수 있어요.\n• 남쪽 부두의 배를 타면 내 섬으로 돌아가요.\n• 이름은 보이지만 채팅은 없어요. 서로 예의를 지켜 주세요!"));
+  for(const bx of[16,32])add({k:"booth",tx:bx,ty:20,tw:2,th:1,sy:21*16},bx*16,20*16,32,16,"전시 부스",()=>msg("레이드에 쓰이는 화학 원리가 전시되어 있다.\n증기 압력 내림 · 끓는점과 외부 압력 · 돌턴의 분압 법칙"));
+  add({k:"plz",sub:"crate",tx:30,ty:13,tw:1,th:1,sy:14*16},30*16,13*16,16,16,"🎁 레이드 재료 상자",()=>plazaSupply());
+  // 부두와 배
+  add({k:"plz",sub:"boat",tx:24,ty:32,tw:2,th:1,sy:33*16},24*16,32*16,32,16,"⛵ 배 타고 내 섬으로 돌아가기",()=>{ask("","내 섬으로 돌아갈까요?",["돌아간다","더 머문다"]).then(c=>{if(c===0)exitPlaza()})});
+  for(let x=13;x<=36;x+=2)PLZ.objs.push({k:"flag",tx:x,ty:9,tw:1,th:1,sy:9*16-200,c:x});
+  // 나무·바위·풀
+  let tc=0,tr=0;
+  while(tc<46&&tr<4000){tr++;const x=2+Math.floor(rnd()*(PW-4)),y=2+Math.floor(rnd()*(PH-4));
+    if(Tl[idx(x,y)]!==T.GRASS||occ[idx(x,y)]||(x>=11&&x<=38&&y>=7&&y<=26))continue;
+    occ[idx(x,y)]=1;PLZ.solid[idx(x,y)]=1;PLZ.objs.push({k:"tree",tx:x,ty:y,tw:1,th:1,sy:(y+1)*16,v:rnd()<.25?1:0,id:"pt"+tc});tc++}
+  for(let i=0;i<10;i++){const x=2+Math.floor(rnd()*(PW-4)),y=2+Math.floor(rnd()*(PH-4));
+    if(Tl[idx(x,y)]!==T.GRASS||occ[idx(x,y)]||(x>=11&&x<=38&&y>=7&&y<=26))continue;
+    occ[idx(x,y)]=1;PLZ.solid[idx(x,y)]=1;PLZ.objs.push({k:"rock",tx:x,ty:y,tw:1,th:1,sy:(y+1)*16})}
+  for(let i=0;i<150;i++){const x=1+Math.floor(rnd()*(PW-2)),y=1+Math.floor(rnd()*(PH-2));
+    if(Tl[idx(x,y)]!==T.GRASS||occ[idx(x,y)])continue;
+    const r=rnd();PLZ.objs.push({k:r<.55?"tuft":r<.9?"pflower":"bush",tx:x,ty:y,tw:1,th:1,sy:(y+1)*16-(r<.55?6:0),c:Math.floor(rnd()*4)})}
+  PLZ.objs.sort((a,b)=>a.sy-b.sy);
+}
+function bakePlazaGround(){
+  if(PLZ.ground&&PLZ.gsp===SPR.ok)return;
+  const c=document.createElement("canvas");c.width=PW*16;c.height=PH*16;const x=c.getContext("2d");
+  const pick=(a,h)=>Array.isArray(a)?a[h%a.length]:a;
+  for(let ty=0;ty<PH;ty++)for(let tx=0;tx<PW;tx++){
+    const t=PLZ.tiles[ty*PW+tx],h=(tx*7+ty*13)&255;let im=null;
+    if(t===T.SAND)im=pick(TILE.sand,h);else if(t===T.GRASS)im=pick(TILE.grass,h);else if(t===T.PATH)im=pick(TILE.path,h);
+    else if(t===T.PLAZA)im=((tx+ty)&1)&&TILE.plaza2?TILE.plaza2:TILE.plaza;
+    else if(t===T.DECK)im=((tx+ty)&1)&&TILE.deck2?TILE.deck2:TILE.deck;
+    if(im)x.drawImage(im,tx*16,ty*16);
+  }
+  PLZ.ground=c;PLZ.gsp=SPR.ok;
+}
+function blockedPlaza(tx,ty){return tx<0||ty<0||tx>=PW||ty>=PH||!landT(PLZ.tiles[ty*PW+tx])||!!PLZ.solid[ty*PW+tx]}
+function plazaRender(fr,dr){
+  bakePlazaGround();
+  const gx=clamp(Math.round(cam.x),0,PW*16-VW),gy=clamp(Math.round(cam.y),0,PH*16-VH);
+  const x0=Math.max(0,gx>>4),x1=Math.min(PW-1,(gx+VW)>>4),y0=Math.max(0,gy>>4),y1=Math.min(PH-1,(gy+VH)>>4),SE=TILE.sea;
+  for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++){
+    if(PLZ.tiles[ty*PW+tx]!==0)continue;
+    const v=SE[(tx*7+ty*13)%SE.length],X=tx*16-gx,Y=ty*16-gy;
+    g.drawImage(v[fr%v.length],X,Y);
+    const o=fr%2;g.fillStyle="rgba(255,255,255,.7)";
+    if(landT(ptile(tx,ty-1)))g.fillRect(X,Y+o,16,1);if(landT(ptile(tx,ty+1)))g.fillRect(X,Y+15-o,16,1);
+    if(landT(ptile(tx-1,ty)))g.fillRect(X+o,Y,1,16);if(landT(ptile(tx+1,ty)))g.fillRect(X+15-o,Y,1,16);
+  }
+  g.drawImage(PLZ.ground,gx,gy,VW,VH,0,0,VW,VH);
+  for(const o of PLZ.objs){const px=o.tx*16,py=o.ty*16;if(px+o.tw*16+24<cam.x||px-24>cam.x+VW||py+o.th*16+16<cam.y||py-40>cam.y+VH)continue;dr.push([o.sy,()=>drawObj(o,fr)])}
+  for(const uid in NET.remote){const r=NET.remote[uid];dr.push([r.y,()=>{person(r.x,r.y,r.d,0,false,remotePal(r),r.anim);labels.push([r.x,r.y-33,r.n])}])}
+  labels.push([P.x,P.y-33,S.flags.nick||"나"]);
+}
+function plazaOverlay(){
+  const draw=(x,y,emo)=>{
+    const age=time-emo.t;if(age>3.2)return;
+    const sx=(x-cam.x)*SC,sy=(y-cam.y-46)*SC-Math.min(age,.4)*24;
+    ctx.globalAlpha=age>2.6?1-(age-2.6)/.6:1;ctx.textAlign="center";ctx.font="28px sans-serif";
+    ctx.fillStyle="rgba(255,251,234,.95)";ctx.strokeStyle="#9b6b43";ctx.lineWidth=3;
+    ctx.beginPath();ctx.roundRect(sx-24,sy-30,48,40,12);ctx.fill();ctx.stroke();
+    ctx.fillStyle="#000";ctx.fillText(EMOTES[emo.id-1],sx,sy+1);ctx.globalAlpha=1;
+  };
+  if(PLZ.myEmo)draw(P.x,P.y,PLZ.myEmo);
+  for(const uid in NET.remote){const r=NET.remote[uid];if(r.emo)draw(r.x,r.y,r.emo)}
+}
+function plazaUpdate(dt){
+  for(const uid in NET.remote){
+    const r=NET.remote[uid],dx=r.tx-r.x,dy=r.ty-r.y;
+    if(Math.hypot(dx,dy)>64){r.x=r.tx;r.y=r.ty}else{const k=Math.min(1,dt*12);r.x+=dx*k;r.y+=dy*k}
+    animChar(r.anim,r.x,r.y,r.d,dt,9,false,null);
+  }
+  if(NET.ok){netSend(dt);raidTick(dt)}
+  PLZ.hud-=dt;if(PLZ.hud<=0){PLZ.hud=.4;updatePlazaHud()}
+}
+function updatePlazaHud(){
+  const np=$("netpill"),rh=$("raidhud");
+  if(!np||!rh)return;
+  document.documentElement.classList.toggle("inplaza",scene==="plaza");
+  if(scene!=="plaza"){np.style.display="none";rh.style.display="none";return}
+  np.style.display="block";np.textContent=NET.ok?`🌐 광장 ${NET.ch.slice(1)} · ${NET.count}명${NET.be.kind==="local"?" (연습 모드)":""}`:"🌐 연결 중…";
+  const r=NET.raid;
+  if(!r||!NET.ok){rh.style.display="none";return}
+  const e=(NET.be.now()-r.t0)/1000,lim={p1:P1_TIME,p2:P2_TIME,p3:P3_TIME}[r.st];
+  const nm={lobby:"모집 중",p1:"1단계 증기 방어막",p2:"2단계 끓어 넘침",p3:"3단계 가스 과압",won:"클리어!",lost:"실패"}[r.st]||"";
+  rh.style.display="block";rh.textContent=`🍲 레이드 ${nm}${lim?` · ${Math.max(0,Math.ceil(lim-e))}초`:""}${isMem(r)?"":" (관전)"}`;
+}
+function plazaKey(code){const m=/^Digit([1-8])$/.exec(code);if(m){plazaEmote(+m[1]);return true}return false}
+function askNick(cb){
+  openWin("🌐 광장 이름 정하기",b=>{
+    b.append(el("div","note","광장에서 다른 플레이어에게 보이는 이름이에요. 한글·영문·숫자 8자까지. 본명 대신 별명을 추천해요."));
+    const inp=el("input");inp.maxLength=8;inp.value=S.flags.nick||"";inp.placeholder="이름";
+    inp.style.cssText="font:inherit;font-size:16px;padding:4px 10px;border:2px solid #b8832a;border-radius:10px;margin-right:8px";
+    const bt=el("button","btn","정했어요");
+    const go=()=>{const v=cleanNick(inp.value);if(!v){toast("이름을 1자 이상 입력해 주세요.");return}S.flags.nick=v;closeWin();cb()};
+    bt.onclick=go;inp.onkeydown=e=>{if(e.key==="Enter")go()};
+    b.append(inp,bt);setTimeout(()=>inp.focus(),30);
+  },480);
+}
+function askEnterPlaza(){
+  ask("","🌐 광장에 입장할까요?\n광장에서는 다른 플레이어에게 내 이름과 위치가 보여요. (채팅은 없어요)",["입장한다","그만둔다"]).then(c=>{if(c===0)enterPlaza()});
+}
+function enterPlaza(){
+  if(!S.flags.nick){askNick(()=>enterPlaza());return}
+  fadeTo(()=>{
+    lastOut=[54*16,24*16+4];buildPlazaOnce();
+    scene="plaza";CUR=null;P.x=PLZ.spawn[0];P.y=PLZ.spawn[1];P.dir=3;camSnap();
+    $("hint").textContent=HINT_PLAZA;netConnect();
+  });
+}
+function exitPlaza(){
+  fadeTo(()=>{netLeave();scene="out";P.x=lastOut[0];P.y=lastOut[1];P.dir=0;camSnap();$("hint").textContent=HINT_OUT;updatePlazaHud()});
+}
+function plazaSupply(){
+  const r=NET.raid;
+  if(!r||!(r.st==="lobby"||r.st==="p1")||!isMem(r)){msg("재료 상자다.\n레이드에 참가한 뒤(모집 중이거나 1단계일 때) 열면, 레이드 1회당 한 번 ‘설탕 3, 소금 1’ 키트를 받을 수 있어요.");return}
+  if(S.flags.kitSeq===r.seq){msg("이번 레이드 키트는 이미 받았어요.");return}
+  S.flags.kitSeq=r.seq;give("sugar",3);give("salt",1);toast("🎁 재료 키트를 받았어요! (설탕 3, 소금 1)");
+}
+function drawPlzObj(o){
+  const x=o.tx*16,y=o.ty*16;
+  if(o.sub==="golem"){
+    const st=NET.raid?NET.raid.st:"idle",t=time,act=st==="p1"||st==="p2"||st==="p3";
+    const sh=act?Math.round(Math.sin(t*28)*(st==="p2"?1.4:.7)):0;
+    const eye={idle:"#ffd84a",lobby:"#ffd84a",p1:"#6fd0ea",p2:"#ff6a4a",p3:"#b58cff",won:"#6bc16b",lost:"#555a66"}[st]||"#ffd84a";
+    R(x+2,y+42,60,5,"rgba(0,0,0,.22)");
+    R(x+10,y+36,12,9,"#4a4a58");R(x+42,y+36,12,9,"#4a4a58");
+    R(x+6+sh,y+12,52,26,"#686c7c");R(x+8+sh,y+14,48,22,"#8a8ea2");R(x+8+sh,y+14,48,4,"#aab0c6");R(x+8+sh,y+34,48,2,"#6a6e80");
+    R(x+3+sh,y+8,58,6,"#4e5264");R(x+3+sh,y+8,58,2,"#6a6e84");R(x+26+sh,y+2,12,7,"#4e5264");R(x+29+sh,y-1,6,3,"#cfd6dc");
+    R(x+0+sh,y+18,6,6,"#4e5264");R(x+58+sh,y+18,6,6,"#4e5264");R(x+1+sh,y+20,4,2,"#6a6e84");R(x+59+sh,y+20,4,2,"#6a6e84");
+    R(x+17+sh,y+20,10,9,"#2a2a34");R(x+37+sh,y+20,10,9,"#2a2a34");R(x+19+sh,y+22,6,5,eye);R(x+39+sh,y+22,6,5,eye);
+    R(x+21+sh,y+23,2,2,"#fff");R(x+41+sh,y+23,2,2,"#fff");
+    if(st==="won"){R(x+22+sh,y+31,20,2,"#2a2a34");R(x+20+sh,y+30,2,2,"#2a2a34");R(x+42+sh,y+30,2,2,"#2a2a34")}
+    else if(st==="lost"){R(x+22+sh,y+31,20,2,"#2a2a34");R(x+20+sh,y+33,2,2,"#2a2a34");R(x+42+sh,y+33,2,2,"#2a2a34")}
+    else{R(x+22+sh,y+31,20,3,"#2a2a34");for(let i=0;i<4;i++)R(x+24+i*4+sh,y+31,2,2,"#f0f0f0")}
+    if(act||st==="lobby"){for(let i=0;i<3;i++){const p=(t*.9+i*.33)%1;R(x+14+i*18+Math.round(Math.sin(t*3+i)*3),y-4-Math.round(p*18),4,4,`rgba(255,255,255,${(.7*(1-p)).toFixed(2)})`)}}
+  }else if(o.sub==="crate"){
+    R(x+1,y+13,14,3,"rgba(0,0,0,.18)");R(x+1,y+4,14,11,"#b07a4a");R(x+1,y+4,14,3,"#d9a56a");R(x+1,y+9,14,1,"#8a5a34");R(x+7,y+4,2,11,"#8a5a34");
+    R(x+4,y-2,4,6,"#cfe8ff");R(x+4,y+1,4,3,"#ffd84a");R(x+9,y,3,4,"#e8eef4");
+  }else if(o.sub==="boat"){
+    const b=Math.round(Math.sin(time*1.6)*1);
+    R(x+1,y+10+b,30,3,"rgba(0,0,0,.18)");R(x+2,y+4+b,28,8,"#a8743f");R(x+4,y+12+b,24,2,"#7a4a24");R(x+2,y+4+b,28,2,"#d9a56a");
+    R(x+14,y-8+b,2,12,"#6a4424");R(x+16,y-8+b,10,8,"#fff4d2");R(x+16,y-8+b,10,2,"#e86a6a");
+  }else if(o.sub==="portal"){
+    const t=time;
+    R(x,y+28,32,4,"rgba(0,0,0,.2)");R(x+1,y+6,5,24,"#8a8e9c");R(x+26,y+6,5,24,"#8a8e9c");R(x+1,y+6,2,24,"#b4bac8");R(x+26,y+6,2,24,"#b4bac8");
+    R(x,y+2,32,6,"#6c7080");R(x+2,y,28,4,"#8a8e9c");R(x+12,y-4,8,5,"#e8c84a");
+    for(let j=0;j<20;j++){const w=Math.round(Math.sin(t*3+j*.6)*3);const c=`rgba(${110+j*4},${200-j*2},255,${(.55+.25*Math.sin(t*2+j)).toFixed(2)})`;R(x+7+w,y+8+j,18,1,c)}
+    for(let i=0;i<4;i++){const p=(t*.7+i*.25)%1;R(x+9+i*5,y+26-Math.round(p*20),2,2,`rgba(255,255,255,${(.8*(1-p)).toFixed(2)})`)}
+  }
+}
+
+// ================= 레이드: 폭주하는 솥 골렘 =================
+// 1단계 증기 방어막 — 비휘발성 용질을 넣어 용액의 증기 압력을 낮춘다 (증기 압력 내림, 소금은 이온 2개로 계산).
+// 2단계 끓어 넘침   — 외부 압력을 올려 끓는점을 높여 솥 온도를 버틴다 (외부 압력과 끓는점, 끓는점 오름).
+// 3단계 가스 과압   — 목표 분압에 맞게 기체 캡슐을 넣는다 (돌턴의 부분 압력 법칙, P = nRT/V).
+// 서버가 없으므로 판정은 '드라이버'(접속 중인 참가자 중 uid가 가장 앞선 사람)의 브라우저가 맡고, 나머지는 같은 데이터를 보고 표시만 한다.
+const P1_TIME=150,P2_TIME=45,P2_RISE=40,P2_GRACE=3,P3_TIME=150,CAP1=8,VMAX=5,PBURST=3.0,GOAL_X=.06,RAID_MAX=8;
+const RD={acc:0,sig:"",last:"",meter:0,done:0,liveFn:null,add:{u:0,a:0},v3:{n2:0,o2:0,he:0}};
+const GOAL_P=P0*(1-GOAL_X);
+const rMem=r=>Object.keys((r&&r.mem)||{});
+const isMem=r=>!!(r&&r.mem&&NET.uid&&r.mem[NET.uid]);
+const raidPath=()=>`plaza/${NET.ch}/raid`;
+function driverUid(r){
+  const now=NET.be.now();
+  const ok=rMem(r).filter(u=>u===NET.uid||(NET.players[u]&&now-NET.players[u].t<STALE)).sort();
+  return ok[0]||null;
+}
+const amDriver=r=>driverUid(r)===NET.uid;
+// ----- 화학 계산 -----
+const potG=N=>100*N;                                  // 솥 속 물의 질량(g)
+function p1Sum(r){let u=0,a=0;const o=r.p1||{};for(const k in o){u+=o[k].u|0;a+=o[k].a|0}return{u,a}}
+function p1State(r){
+  const{u,a}=p1Sum(r),pot=potG(r.N||1),part=(u+a*2)*.1,nw=pot/18.015,X=part/(part+nw);
+  return{u,a,part,X,P:P0*(1-X),m:part/(pot/1000),pot};
+}
+const tbPure=P=>1/(1/373.15-8.314*Math.log(P)/40700)-273.15;   // 클라우지우스–클라페롱, ΔHvap = 40.7 kJ/mol
+const tPeak=N=>Math.min(125,102+5*N);
+function p2State(r,e){
+  const N=r.N||1,v=r.p2||{};let s=0;for(const k in v)s+=v[k]|0;
+  const Pext=1+.1*s,dTb=.512*p1State(r).m,Tb=tbPure(Pext)+dTb;
+  const T=100+(tPeak(N)-100)*clamp((e-P2_GRACE)/P2_RISE,0,1);
+  return{Pext,Tb,dTb,T,s};
+}
+const need3=N=>({n2:Math.max(2,Math.ceil(N*.8)),o2:Math.max(1,Math.ceil(N*.4)),he:Math.max(1,Math.floor(N*.4))});
+function use3(r){const t={n2:0,o2:0,he:0},o=(r.p3&&r.p3.use)||{};for(const k in o)for(const g_ in t)t[g_]+=o[k][g_]|0;return t}
+const GAS=[["n2","질소 N₂","#4a7ee0"],["o2","산소 O₂","#e85a5a"],["he","헬륨 He","#e8b830"]];
+
+function raidLabel(){
+  const r=NET.raid;
+  if(!r)return"🍲 폭주하는 솥 골렘 (레이드 모집하기)";
+  if(r.st==="lobby")return isMem(r)?"🍲 레이드 대기실 보기":"🍲 레이드 참가하기";
+  if(r.st==="won"||r.st==="lost")return"🍲 레이드 결과 보기";
+  return isMem(r)?"🍲 레이드 진행 화면 열기":"🍲 레이드 구경하기";
+}
+// ----- 상태 변경(쓰기) -----
+function raidWrite(obj){return NET.be.update(raidPath(),obj)}
+function raidOpen(){
+  const now=NET.be.now();
+  NET.be.set(raidPath(),{seq:now,st:"lobby",t0:now,mem:{[NET.uid]:{n:S.flags.nick||"손님"}}});
+}
+function raidJoin(){const r=NET.raid;if(!r||r.st!=="lobby"||rMem(r).length>=RAID_MAX)return;NET.be.set(`${raidPath()}/mem/${NET.uid}`,{n:S.flags.nick||"손님"})}
+function raidLeave(){
+  const r=NET.raid;if(!r)return;
+  if(rMem(r).filter(u=>u!==NET.uid).length===0)NET.be.remove(raidPath());else NET.be.remove(`${raidPath()}/mem/${NET.uid}`);
+}
+function raidStart(){const r=NET.raid;if(!r||r.st!=="lobby"||!isMem(r))return;raidWrite({st:"p1",t0:NET.be.now(),N:rMem(r).length})}
+function raidLose(why){const r=NET.raid;if(!r||r.st==="won"||r.st==="lost")return;raidWrite({st:"lost",t0:NET.be.now(),why})}
+function raidStartP3(r){
+  const N=r.N||1,need=need3(N),deck=[];
+  for(const g_ in need)for(let i=0;i<need[g_];i++)deck.push(g_);
+  for(let i=0;i<2;i++)deck.push(["n2","o2","he"][Math.floor(Math.random()*3)]);   // 함정용 여분 캡슐 2개
+  const now=NET.be.now(),ok=rMem(r).filter(u=>u===NET.uid||(NET.players[u]&&now-NET.players[u].t<STALE)).sort(),sup={};
+  ok.forEach(u=>sup[u]={n2:0,o2:0,he:0});
+  shuffle(deck).forEach((g_,i)=>sup[ok[i%ok.length]][g_]++);
+  raidWrite({st:"p3",t0:now,p3:{need,sup,use:null}});
+}
+// ----- 매 프레임 판정 -----
+function raidTick(dt){
+  RD.acc+=dt;if(RD.acc<.25)return;RD.acc=0;
+  const r=NET.raid;
+  if(!r){RD.last="";return}
+  const now=NET.be.now(),e=(now-r.t0)/1000,key=r.seq+":"+r.st;
+  if(key!==RD.last){RD.last=key;RD.meter=0;raidOnState(r)}
+  if(r.st==="p2"){const s=p2State(r,e);RD.meter=clamp(RD.meter+(s.T>s.Tb?.25:-.25),0,6)}
+  if(curWin&&curWin.raid&&RD.liveFn)RD.liveFn();
+  if(!amDriver(r))return;
+  if(r.st==="p1"){
+    if(p1State(r).P<=GOAL_P+1e-9)raidWrite({st:"p2",t0:now});
+    else if(e>P1_TIME)raidLose("제한 시간 안에 증기 압력을 목표까지 낮추지 못했어요.");
+  }else if(r.st==="p2"){
+    const s=p2State(r,e);
+    if(s.Pext>PBURST+1e-9)raidLose(`외부 압력이 ${PBURST.toFixed(1)} atm을 넘어 솥이 터졌어요!`);
+    else if(RD.meter>=6)raidLose("솥 온도가 끓는점을 넘은 채로 너무 오래 있어서 끓어 넘쳤어요!");
+    else if(e>=P2_TIME)raidStartP3(r);
+  }else if(r.st==="p3"&&r.p3&&r.p3.need){
+    const u=use3(r),n=r.p3.need;
+    if(u.n2>n.n2||u.o2>n.o2||u.he>n.he)raidLose("목표 분압을 넘겨서 용기가 과압으로 터졌어요!");
+    else if(u.n2===n.n2&&u.o2===n.o2&&u.he===n.he)raidWrite({st:"won",t0:now,why:"세 기체의 분압이 목표와 정확히 맞았어요!"});
+    else if(e>P3_TIME)raidLose("제한 시간 안에 목표 분압을 맞추지 못했어요.");
+  }else if((r.st==="won"||r.st==="lost")&&e>30)NET.be.remove(raidPath());
+  else if(r.st==="lobby"&&e>900)NET.be.remove(raidPath());
+}
+function netRaid(v){
+  NET.raid=v||null;
+  const r=NET.raid,sig=r?r.seq+":"+r.st+":"+rMem(r).join(","):"none";
+  if(sig!==RD.sig){RD.sig=sig;if(curWin&&curWin.raid)refreshWin()}
+  else if(curWin&&curWin.raid&&RD.liveFn)RD.liveFn();
+  updatePlazaHud();
+}
+function raidOnState(r){
+  if(!isMem(r))return;
+  if(r.st==="p1"||r.st==="p2"||r.st==="p3"){
+    RD.add={u:0,a:0};RD.v3={n2:0,o2:0,he:0};
+    if(!dl&&(!curWin||curWin.raid)){if(curWin)refreshWin();else winRaid()}
+  }else if(r.st==="won"||r.st==="lost"){
+    if(RD.done!==r.seq){
+      RD.done=r.seq;
+      if(r.st==="won"){const c=60+20*(r.N||1);S.coins+=c;S.flags.raidWins=(S.flags.raidWins||0)+1;toast(`🎉 레이드 클리어! 🪙 ${c} 코인을 받았어요.`,5000)}
+    }
+    if(!dl&&(!curWin||curWin.raid)){if(curWin)refreshWin();else winRaid()}
+  }
+}
+// ----- 창(UI) -----
+function lbar(label,w=150){
+  const row=el("div","bar"),sp=el("span","",label),tr=el("div","track"),fi=el("i"),val=el("b");
+  tr.append(fi);row.append(sp,tr,val);val.style.width=w+"px";
+  return{row,set:(text,pct,col)=>{val.textContent=text;fi.style.width=clamp(pct,2,100)+"%";if(col)fi.style.background=col}};
+}
+function winRaid(){
+  if(!NET.ok){toast("아직 광장에 연결 중이에요. 잠시만요!");return}
+  RD.add={u:0,a:0};RD.v3={n2:0,o2:0,he:0};
+  openWin("🍲 폭주하는 솥 골렘 (레이드)",raidBuild,680);curWin.raid=true;
+}
+function memList(r){return rMem(r).map(u=>`${r.mem[u].n}${u===NET.uid?"(나)":""}`).join(", ")}
+function raidBuild(b){
+  const r=NET.raid,live=[];RD.liveFn=()=>live.forEach(f=>f());
+  if(!NET.ok){b.append(el("div","empty","광장에 연결 중이에요…"));return}
+  if(!r){
+    b.append(el("div","note","솥 골렘이 끓어 넘치기 직전이에요! 힘을 합쳐 세 단계를 넘기면 진정시킬 수 있어요.<br>① <b>증기 방어막</b> — 용질을 넣어 증기 압력을 낮추기<br>② <b>끓어 넘침</b> — 외부 압력을 올려 끓는점을 높이기<br>③ <b>가스 과압</b> — 목표 분압에 맞게 기체를 섞기<br>혼자서도 할 수 있지만 3명 이상이면 더 재미있어요. (최대 8명)"));
+    const bt=el("button","btn","레이드 모집 시작");bt.onclick=()=>raidOpen();b.append(bt);return;
+  }
+  if(r.st==="lobby"){
+    b.append(el("div","sub",`🙋 참가자 ${rMem(r).length}/${RAID_MAX}명`),el("div","note",memList(r)||"-"));
+    const row=el("div","row");
+    if(!isMem(r)){const bt=el("button","btn"+(rMem(r).length>=RAID_MAX?" dis":""),"참가하기");bt.onclick=()=>raidJoin();row.append(bt)}
+    else{
+      const st=el("button","btn on",`시작하기 (${rMem(r).length}명)`);st.onclick=()=>raidStart();
+      const lv=el("button","btn","나가기");lv.onclick=()=>raidLeave();row.append(st,lv);
+    }
+    b.append(row,el("div","note","💡 시작하면 참가자 수에 맞춰 솥의 크기와 목표가 정해져요. 광장의 🎁 재료 상자에서 설탕·소금 키트를 받아 두세요."));
+    return;
+  }
+  const head=el("div","sub","");b.append(head);
+  const clock=()=>{const lim={p1:P1_TIME,p2:P2_TIME,p3:P3_TIME}[NET.raid.st];return lim?`남은 시간 ${Math.max(0,Math.ceil(lim-(NET.be.now()-NET.raid.t0)/1000))}초`:""};
+  if(r.st==="won"||r.st==="lost"){
+    head.textContent=r.st==="won"?"🎉 레이드 클리어!":"💥 레이드 실패";
+    b.append(el("div","note",r.why||""));
+    if(r.st==="won")b.append(el("div","note",`참가자: ${memList(r)}<br>보상: 🪙 ${60+20*(r.N||1)} 코인 (참가자 전원)`));
+    else b.append(el("div","note","원인을 되짚어 보고 다시 도전해 봐요. 몇 초 뒤 솥이 식으면 새 레이드를 모집할 수 있어요."));
+    return;
+  }
+  const mine=isMem(r);
+  if(!mine)b.append(el("div","note","👀 구경 중이에요. 참가자만 조작할 수 있어요."));
+  if(r.st==="p1"){
+    head.textContent="① 증기 방어막 — 증기 압력을 낮춰라";
+    b.append(el("div","note",`솥에는 물 ${potG(r.N||1)} g이 들어 있어요. 비휘발성 용질을 녹이면 물의 몰분율이 줄어 증기 압력이 내려가요. 증기 압력을 <b>${f2(GOAL_P)} mmHg 이하</b>(순수한 물 ${P0} mmHg의 ${100-GOAL_X*100}%)로 낮추세요.<br>🍬 설탕 1스푼 = 입자 0.1 mol · 🧂 소금 1스푼 = Na⁺·Cl⁻ 입자 0.2 mol`));
+    const bP=lbar("증기 압력",190),bX=lbar("용질 입자",190),tm=el("div","note");b.append(bP.row,bX.row,tm);
+    live.push(()=>{const s=p1State(NET.raid);bP.set(`${f2(s.P)} / ${f2(GOAL_P)} mmHg`,s.P/P0*100,s.P<=GOAL_P?"#6bc16b":"#e8802a");bX.set(`${f2(s.part)} mol (X=${f2(s.X)})`,s.part/(.3*(NET.raid.N||1))*100,"#6fd0ea");tm.textContent=clock()});
+    if(mine){
+      const my=(r.p1&&r.p1[NET.uid])||{u:0,a:0},left=CAP1-(my.u|0)-(my.a|0);
+      b.append(el("div","sub",`내 투입 (한 사람당 최대 ${CAP1}스푼, 남은 칸 ${left})`));
+      const row=el("div","row");
+      const lim=()=>CAP1-(my.u|0)-(my.a|0);
+      row.append(el("span","",`${ITEMS.sugar.e} 설탕 (보유 ${have("sugar")})`),stepper(()=>RD.add.u,v=>{RD.add.u=Math.min(v,have("sugar"),lim()-RD.add.a)},0,Math.min(have("sugar"),lim()),v=>`${v}스푼`));
+      const row2=el("div","row");
+      row2.append(el("span","",`${ITEMS.salt.e} 소금 (보유 ${have("salt")})`),stepper(()=>RD.add.a,v=>{RD.add.a=Math.min(v,have("salt"),lim()-RD.add.u)},0,Math.min(have("salt"),lim()),v=>`${v}스푼`));
+      const go=el("button","btn","투입하기");
+      go.onclick=()=>{const{u,a}=RD.add;if(!(u||a)){toast("스푼 수를 정해 주세요.");return}
+        if(u)take("sugar",u);if(a)take("salt",a);
+        NET.be.set(`${raidPath()}/p1/${NET.uid}`,{u:(my.u|0)+u,a:(my.a|0)+a});RD.add={u:0,a:0};refreshWin()};
+      b.append(row,row2,go,el("div","note",have("sugar")+have("salt")===0?"재료가 없어요! 광장의 🎁 재료 상자나 섬의 사탕수수·소금 바위에서 구해 오세요.":"소금은 같은 스푼 수라도 입자가 2배라서 증기 압력을 더 많이 낮춰요."));
+    }
+    const rows=Object.keys(r.p1||{}).map(u=>`<tr><td>${(r.mem&&r.mem[u]&&r.mem[u].n)||"?"}</td><td>${r.p1[u].u|0}</td><td>${r.p1[u].a|0}</td></tr>`).join("");
+    if(rows)b.append(el("div","",`<table><tr><th>이름</th><th>설탕</th><th>소금</th></tr>${rows}</table>`));
+  }else if(r.st==="p2"){
+    head.textContent="② 끓어 넘침 — 끓는점을 높여라";
+    b.append(el("div","note",`솥이 점점 뜨거워져요. <b>솥 온도가 끓는점을 넘은 채 6초</b> 있으면 끓어 넘치고, <b>외부 압력이 ${PBURST.toFixed(1)} atm</b>을 넘으면 솥이 터져요. 각자 압력 밸브(한 칸 +0.1 atm, 최대 ${VMAX}칸)를 조절해 팀 전체의 압력을 맞추세요.<br><small>참고: 1.5 atm ≈ 112 ℃ · 2.0 atm ≈ 121 ℃ · 3.0 atm ≈ 134 ℃ (순수한 물 기준) + 용질 때문에 오른 끓는점 오름</small>`));
+    const bT=lbar("솥 온도",200),bB=lbar("끓는점",200),bPx=lbar("외부 압력",200),bM=lbar("과열 게이지",200),tm=el("div","note");
+    b.append(bT.row,bB.row,bPx.row,bM.row,tm);
+    live.push(()=>{
+      const R_=NET.raid,e=(NET.be.now()-R_.t0)/1000,s=p2State(R_,e);
+      bT.set(`${s.T.toFixed(1)} ℃`,(s.T-95)/40*100,s.T>s.Tb?"#e85a5a":"#e8802a");
+      bB.set(`${s.Tb.toFixed(1)} ℃ (용질 +${s.dTb.toFixed(1)})`,(s.Tb-95)/40*100,"#4a9ee0");
+      bPx.set(`${s.Pext.toFixed(1)} atm / ${PBURST.toFixed(1)}`,s.Pext/PBURST*100,s.Pext>2.6?"#e85a5a":"#6bc16b");
+      bM.set(`${RD.meter.toFixed(1)} / 6`,RD.meter/6*100,RD.meter>3?"#e85a5a":"#cdb68a");
+      tm.textContent=clock();
+    });
+    if(mine){
+      const valve=el("b","",""),setV=v=>NET.be.set(`${raidPath()}/p2/${NET.uid}`,clamp(v,0,VMAX));
+      const m=el("button","btn sm","−"),p=el("button","btn sm","+");
+      m.onclick=()=>setV(((NET.raid.p2&&NET.raid.p2[NET.uid])|0)-1);p.onclick=()=>setV(((NET.raid.p2&&NET.raid.p2[NET.uid])|0)+1);
+      const row=el("div","row");row.append(el("span","sub","🎛️ 내 압력 밸브"),m,valve,p);b.append(row);
+      live.push(()=>{const v=(NET.raid.p2&&NET.raid.p2[NET.uid])|0;valve.textContent=`${v}칸 (+${(v*.1).toFixed(1)} atm)`});
+    }
+    const mv=el("div","note");b.append(mv);
+    live.push(()=>{const R_=NET.raid;mv.innerHTML="밸브 현황: "+rMem(R_).map(u=>`${R_.mem[u].n} ${(R_.p2&&R_.p2[u])|0}칸`).join(" · ")});
+  }else if(r.st==="p3"&&r.p3&&r.p3.need){
+    head.textContent="③ 가스 과압 — 분압을 맞춰라";
+    const need=r.p3.need;
+    b.append(el("div","note",`10 L 용기(300 K)에 기체 캡슐(1 mol)을 넣어요. 이 조건에서 <b>기체 1 mol의 압력은 ${f2(RT)} atm</b>이에요 (P = nRT/V). 목표 <b>분압</b>에 정확히 맞게 캡슐 수를 정하세요. <b>하나라도 넘기면 폭발</b>하고, 캡슐은 되돌릴 수 없어요. 여분의 캡슐이 섞여 있으니 팀원끼리 상의하세요!`));
+    const bars={};
+    for(const[k,nm,col]of GAS){bars[k]=lbar(nm+" 분압",230);b.append(bars[k].row)}
+    const bt_=lbar("전체 압력",230);b.append(bt_.row);
+    const tm=el("div","note");b.append(tm);
+    live.push(()=>{
+      const R_=NET.raid,u=use3(R_),nd=R_.p3.need;let cur=0,tgt=0;
+      for(const[k,,col]of GAS){cur+=u[k]*RT;tgt+=nd[k]*RT;bars[k].set(`${f2(u[k]*RT)} / 목표 ${f2(nd[k]*RT)} atm`,u[k]/nd[k]*100,u[k]>nd[k]?"#e85a5a":col)}
+      bt_.set(`${f2(cur)} / 목표 ${f2(tgt)} atm`,cur/tgt*100,"#8a8ea2");tm.textContent=clock();
+    });
+    if(mine){
+      const sup=(r.p3.sup&&r.p3.sup[NET.uid])||{n2:0,o2:0,he:0},used=(r.p3.use&&r.p3.use[NET.uid])||{n2:0,o2:0,he:0};
+      b.append(el("div","sub","내 캡슐"));
+      for(const[k,nm]of GAS){
+        const avail=(sup[k]|0)-(used[k]|0),row=el("div","row");
+        row.append(el("span","",`${nm} (보유 ${avail}개)`),stepper(()=>RD.v3[k],v=>{RD.v3[k]=v},0,avail,v=>`${v}개`));b.append(row);
+      }
+      const go=el("button","btn","용기에 넣기");
+      go.onclick=()=>{const t=RD.v3;if(!(t.n2||t.o2||t.he)){toast("넣을 캡슐 수를 정해 주세요.");return}
+        NET.be.set(`${raidPath()}/p3/use/${NET.uid}`,{n2:(used.n2|0)+t.n2,o2:(used.o2|0)+t.o2,he:(used.he|0)+t.he});RD.v3={n2:0,o2:0,he:0};refreshWin()};
+      b.append(go);
+    }
+    const hv=el("div","note");b.append(hv);
+    live.push(()=>{const R_=NET.raid;if(!R_.p3)return;hv.innerHTML="팀원 보유 캡슐: "+rMem(R_).map(u=>{const s=(R_.p3.sup&&R_.p3.sup[u])||{},w=(R_.p3.use&&R_.p3.use[u])||{};return`${R_.mem[u].n} N₂${(s.n2|0)-(w.n2|0)} O₂${(s.o2|0)-(w.o2|0)} He${(s.he|0)-(w.he|0)}`}).join(" · ")});
+  }else b.append(el("div","empty","상태를 불러오는 중이에요…"));
+  RD.liveFn();
+}
+addEventListener("pagehide",()=>{if(NET.be&&NET.be.close)NET.be.close()});
+
 // ================= 메인 루프/입력 =================
 function updateHud(){
   $("coin").textContent=`🪙 ${S.coins}`;
@@ -1505,9 +2047,10 @@ function frame(now){
       if(scene==="out"){
         const tx=Math.floor(P.x/16),ty=Math.floor(P.y/16);
         for(const d of OUT.doors)if(d.tx===tx&&d.ty===ty&&!lockedD(d)){enterDoor(d);break}
-      }else if(Math.floor(P.y/16)>=CUR.h-1&&Math.abs(P.x-(CUR.ex*16+8))<10)exitHouse();
+      }else if(scene!=="plaza"&&Math.floor(P.y/16)>=CUR.h-1&&Math.abs(P.x-(CUR.ex*16+8))<10)exitHouse();
     }else P.moving=false;
     if(scene==="out")updateDalton(dt);
+    if(scene==="plaza")plazaUpdate(dt);
     pickTarget();updateCam(dt);animStep(dt);
     hudT-=dt;if(hudT<=0){hudT=.25;updateHud()}
     saveT+=dt;if(saveT>30){saveT=0;if(!busy())save()}
@@ -1515,6 +2058,7 @@ function frame(now){
   render();
 }
 addEventListener("keydown",e=>{
+  if(e.target&&e.target.tagName==="INPUT")return;
   if(!started)return;
   if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();
   if(e.code==="Escape"){if(curWin)closeWin();return}
@@ -1525,6 +2069,7 @@ addEventListener("keydown",e=>{
     if(e.code==="KeyM"){curWin&&$("wt").textContent.includes("지도")?closeWin():winMap();return}
     if(e.code==="KeyH"){curWin&&$("wt").textContent.includes("도움말")?closeWin():winHelp();return}
   }
+  if(scene==="plaza"&&!e.repeat&&plazaKey(e.code))return;
   if(curWin||fade.dir)return;
   keys[e.code]=true;
   if(!e.repeat&&(e.code==="KeyE"||e.code==="Space"||e.code==="Enter")&&target)target.act();
