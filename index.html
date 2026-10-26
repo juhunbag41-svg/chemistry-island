@@ -1255,7 +1255,7 @@ function winMap(){
   },560);
 }
 function winHelp(){
-  openWin("❓ 도움말",b=>b.append(el("div","",`<b>이동</b> 방향키 / WASD<br><b>상호작용</b> E · Space · Enter (바라보는 방향의 대상)<br><b>보관함</b> I　<b>일지</b> Q　<b>지도</b> M　<b>닫기</b> Esc<br><br>🌿 <b>모으기</b> 강물(물), 사탕수수(설탕), 해변 바위(소금), 모래 X표(모래), 나무 흔들기(나뭇가지), 꽃, 반짝이는 종이<br>🔨 <b>만들기</b> 공방 제작대 / 요리방 용액 실험 / 기체 실험대<br>🛍️ <b>팔기·사기</b> 상점 계산대<br>🪴 <b>꾸미기</b> 보관함에서 꾸미기 아이템 선택 → ‘내려놓기’ (놓은 것은 E로 다시 거둘 수 있어요)<br>😴 <b>잠자기</b> 내 집 침대 → 새 하루, 재료 다시 자람<br>🌐 <b>광장</b> 동쪽 이벤트 광장의 포털 → 공용 광장 (숫자 1~8 이모티콘, 채팅 없음). 가운데 솥 골렘과 협동 레이드: 증기 압력 내림 → 끓는점 오름 → 돌턴의 분압 법칙<br><br>돌턴 박사는 섬을 산책하기도 해요. 일지(Q)에서 지금 어디쯤 있는지 알 수 있어요.`),360));
+  openWin("❓ 도움말",b=>b.append(el("div","",`<b>이동</b> 방향키 / WASD<br><b>상호작용</b> E · Space · Enter (바라보는 방향의 대상)<br><b>보관함</b> I　<b>일지</b> Q　<b>지도</b> M　<b>닫기</b> Esc<br><br>🌿 <b>모으기</b> 강물(물), 사탕수수(설탕), 해변 바위(소금), 모래 X표(모래), 나무 흔들기(나뭇가지), 꽃, 반짝이는 종이<br>🔨 <b>만들기</b> 공방 제작대 / 요리방 용액 실험 / 기체 실험대<br>🛍️ <b>팔기·사기</b> 상점 계산대<br>🪴 <b>꾸미기</b> 보관함에서 꾸미기 아이템 선택 → ‘내려놓기’ (놓은 것은 E로 다시 거둘 수 있어요)<br>😴 <b>잠자기</b> 내 집 침대 → 새 하루, 재료 다시 자람<br>🌐 <b>광장</b> 동쪽 이벤트 광장의 포털 → 공용 광장 (숫자 1~8 이모티콘, 채팅 없음). 가운데 솥 골렘과 협동 레이드: 증기 압력 내림 → 과열 제어(용질·압력에 따른 끓는점, 끓어 넘침) → 돌턴의 분압 법칙. 솥 불안정도 게이지가 가득 차기 전에 진정시켜요.<br><br>돌턴 박사는 섬을 산책하기도 해요. 일지(Q)에서 지금 어디쯤 있는지 알 수 있어요.`),360));
 }
 
 // ================= 그리기 =================
@@ -1808,9 +1808,9 @@ function updatePlazaHud(){
   const r=NET.raid;
   if(!r||!NET.ok){rh.style.display="none";return}
   const e=(NET.be.now()-r.t0)/1000,lim={p1:P1_TIME,p2:P2_TIME,p3:P3_TIME}[r.st];
-  const nm={lobby:"모집 중",p1:"1단계 증기 방어막",p2:"2단계 끓어 넘침",p3:"3단계 가스 과압",won:"클리어!",lost:"실패"}[r.st]||"";
+  const nm={lobby:"모집 중",p1:"1단계 증기 방어막",p2:"2단계 과열 제어",p3:"3단계 가스 과압",won:"클리어!",lost:"실패"}[r.st]||"";
   const dd=RD.danger,act=r.st==="p1"||r.st==="p2"||r.st==="p3",warn=act&&dd>.6;
-  rh.style.display="block";rh.textContent=`${warn?"⚠ ":"🍲 "}레이드 ${nm}${lim?` · ${Math.max(0,Math.ceil(lim-e))}초`:""}${isMem(r)?"":" (관전)"}`;
+  rh.style.display="block";rh.textContent=`${warn?"⚠ ":"🍲 "}레이드 ${nm}${lim?` · ${Math.max(0,Math.ceil(lim-e))}초`:""}${act?` · 불안정 ${Math.round(dd*100)}%`:""}${isMem(r)?"":" (관전)"}`;
   rh.style.borderColor=act?(dd>.6?"#c0392b":dd>.35?"#d6892a":"#9b6b43"):"";rh.style.background=warn?"rgba(255,228,222,.96)":"";   // 위험할수록 알약의 테두리·바탕이 붉어진다
 }
 // 공동 광장 시각: 서버 시각(be.now())에서 계산한다. 저장·전송하는 값이 없고 늦게 들어와도 같은 값이 나온다.
@@ -1914,7 +1914,9 @@ function drawPlzObj(o){
 
 // ================= 레이드: 폭주하는 솥 골렘 =================
 // 1단계 증기 방어막 — 비휘발성 용질을 넣어 용액의 증기 압력을 낮춘다 (증기 압력 내림, 소금은 이온 2개로 계산).
-// 2단계 끓어 넘침   — 외부 압력을 올려 끓는점을 높여 솥 온도를 버틴다 (외부 압력과 끓는점, 끓는점 오름).
+// 2단계 과열 제어   — 압력 밸브로 끓는점을 조절해 열원 온도의 과열(끓어 넘침)을 막는다.
+//                     끓는점은 두 가지로 정해진다: 외부 압력(클라우지우스–클라페롱)과 용질(끓는점 오름, ΔTb = i·Kb·m).
+//                     끓어 넘침은 끓는점 오름과 다른 현상이다 — 열원 온도가 끓는점을 넘은 과열 상태가 누적되면 일어나는 위험으로 다룬다.
 // 3단계 가스 과압   — 목표 분압에 맞게 기체 캡슐을 넣는다 (돌턴의 부분 압력 법칙, P = nRT/V).
 // 서버가 없으므로 판정은 '드라이버'(접속 중인 참가자 중 uid가 가장 앞선 사람)의 브라우저가 맡고, 나머지는 같은 데이터를 보고 표시만 한다.
 const P1_TIME=150,P2_TIME=45,P2_RISE=40,P2_GRACE=3,P3_TIME=150,CAP1=8,VMAX=5,PBURST=3.0,GOAL_X=.06,RAID_MAX=8;
@@ -1963,9 +1965,10 @@ function raidDanger(){
   const e=(NET.be.now()-r.t0)/1000;
   if(r.st==="won"||r.st==="lobby")return 0;
   if(r.st==="lost")return 1;
-  if(r.st==="p1"){const s=p1State(r),prog=clamp(1-(s.P-GOAL_P)/(P0-GOAL_P),0,1);return clamp(.2+.6*clamp(e/P1_TIME,0,1)-.35*prog,0,1)}   // 시간이 갈수록 위험, 증기 압력이 목표에 가까울수록 안정
-  if(r.st==="p2"){const s=p2State(r,e);return clamp(Math.max(RD.meter/6,(s.Pext-1.5)/(PBURST-1.5)),0,1)}                                      // 과열 누적이 차오르거나 외부 압력이 파열선에 가까울수록 위험
-  if(r.st==="p3")return clamp(.25+.6*clamp(e/P3_TIME,0,1),0,1);
+  // 솥 불안정도: 실패 조건에 가까워질수록 오르고, 실패하는 순간(시간 초과·파열·끓어 넘침) 100%가 된다.
+  if(r.st==="p1"){const s=p1State(r),prog=clamp(1-(s.P-GOAL_P)/(P0-GOAL_P),0,1),tf=clamp(e/P1_TIME,0,1);return tf>=1?1:clamp(.1+.9*tf*(1-.6*prog),0,1)}   // 시간이 갈수록 오르고, 증기 압력이 목표에 가까울수록 덜 오른다
+  if(r.st==="p2"){const s=p2State(r,e);return clamp(Math.max(.08,RD.meter/6,(s.Pext-1.5)/(PBURST-1.5)),0,1)}                                                // 과열 누적이 차오르거나 외부 압력이 파열선(3.0 atm)에 가까울수록 오른다
+  if(r.st==="p3")return clamp(.1+.9*clamp(e/P3_TIME,0,1),0,1);
   return .3;
 }
 function raidFxUpdate(dt){
@@ -1993,7 +1996,7 @@ function plazaRaidFx(){
     g.fillStyle=`rgba(${c},${(f*f*.35).toFixed(3)})`;g.fillRect(0,0,VW,VH);
   }
 }
-const RAID_BANNER={p1:"🍲 1단계 — 증기 방어막! 용질로 증기 압력을 낮춰요",p2:"🌡️ 2단계 — 솥이 뜨거워져요! 압력 밸브를 조절해요",p3:"⚗️ 3단계 — 가스가 차올라요! 분압을 맞춰요",won:"✨ 솥의 정령이 진정됐어요!",lost:"💥 솥이 불안정해졌어요…"};
+const RAID_BANNER={p1:"🍲 1단계 — 증기 방어막! 용질로 증기 압력을 낮춰요",p2:"🌡️ 2단계 — 열원이 뜨거워져요! 압력 밸브로 끓는점을 조절해요",p3:"⚗️ 3단계 — 가스가 차올라요! 분압을 맞춰요",won:"✨ 솥의 정령이 진정됐어요!",lost:"💥 솥이 불안정해졌어요…"};
 function raidLabel(){
   const r=NET.raid;
   if(!r)return"🍲 폭주하는 솥 골렘 (레이드 모집하기)";
@@ -2099,7 +2102,7 @@ function raidTick(dt){
   }else if(r.st==="p2"){
     const s=p2State(r,e);
     if(s.Pext>PBURST+1e-9)raidLose(`외부 압력이 ${PBURST.toFixed(1)} atm을 넘어 솥이 터졌어요!`);
-    else if(RD.meter>=6)raidLose("솥 온도가 끓는점을 넘은 채로 너무 오래 있어서 끓어 넘쳤어요!");
+    else if(RD.meter>=6)raidLose("열원 온도가 끓는점을 넘은 과열 상태가 너무 오래 이어져 끓어 넘쳤어요!");
     else if(e>=P2_TIME)raidStartP3(r);
   }else if(r.st==="p3"&&r.p3&&r.p3.need){
     raidP3Rebalance(r,live);
@@ -2147,7 +2150,7 @@ function raidBuild(b){
   const r=NET.raid,live=[];RD.liveFn=()=>live.forEach(f=>f());
   if(!NET.ok){b.append(el("div","empty","광장에 연결 중이에요…"));return}
   if(!r){
-    b.append(el("div","note","솥 골렘이 끓어 넘치기 직전이에요! 힘을 합쳐 세 단계를 넘기면 진정시킬 수 있어요.<br>① <b>증기 방어막</b> — 용질을 넣어 증기 압력을 낮추기<br>② <b>끓어 넘침</b> — 외부 압력을 올려 끓는점을 높이기<br>③ <b>가스 과압</b> — 목표 분압에 맞게 기체를 섞기<br>혼자서도 할 수 있지만 3명 이상이면 더 재미있어요. (최대 8명)"));
+    b.append(el("div","note","솥 골렘이 끓어 넘치기 직전이에요! 힘을 합쳐 세 단계를 넘기면 진정시킬 수 있어요.<br>① <b>증기 방어막</b> — 용질을 넣어 증기 압력을 낮추기<br>② <b>과열 제어</b> — 압력 밸브로 끓는점을 조절해 끓어 넘침 막기<br>③ <b>가스 과압</b> — 목표 분압에 맞게 기체를 섞기<br>혼자서도 할 수 있지만 3명 이상이면 더 재미있어요. (최대 8명)"));
     const bt=el("button","btn","레이드 모집 시작");bt.onclick=()=>raidOpen();b.append(bt);return;
   }
   if(r.st==="lobby"){
@@ -2172,9 +2175,12 @@ function raidBuild(b){
   }
   const mine=isMem(r);
   if(!mine)b.append(el("div","note","👀 구경 중이에요. 참가자만 조작할 수 있어요."));
+  // 솥 불안정도: 모든 단계에서 같은 게이지. 가득 차거나 제한 시간이 끝나면 실패한다.
+  {const bI=lbar("솥 불안정도",200);b.append(bI.row);
+    live.push(()=>{const d=RD.danger,[sr,sg,sb]=steamRGB(d);bI.set(`${Math.round(d*100)}%${d>=.85?" ⚠ 위험!":""}`,d*100,`rgb(${sr},${sg},${sb})`)})}
   if(r.st==="p1"){
     head.textContent="① 증기 방어막 — 증기 압력을 낮춰라";
-    b.append(el("div","note",`솥에는 물 ${potG(r.N||1)} g이 들어 있어요. 비휘발성 용질을 녹이면 물의 몰분율이 줄어 증기 압력이 내려가요. 증기 압력을 <b>${f2(GOAL_P)} mmHg 이하</b>(순수한 물 ${P0} mmHg의 ${100-GOAL_X*100}%)로 낮추세요.<br>🍬 설탕 1스푼 = 입자 0.1 mol · 🧂 소금 1스푼 = Na⁺·Cl⁻ 입자 0.2 mol`));
+    b.append(el("div","note",`솥에는 물 ${potG(r.N||1)} g이 들어 있어요. 비휘발성 용질을 녹이면 물의 몰분율이 줄어 증기 압력이 내려가요(라울의 법칙: 줄어드는 비율 ΔP/P° = 용질의 몰분율). 증기 압력을 <b>${f2(GOAL_P)} mmHg 이하</b>(25 ℃ 물의 증기 압력 ${P0} mmHg의 ${100-GOAL_X*100}%)로 낮추세요. 94%라는 비율은 온도와 상관없이 같아요.<br>🍬 설탕 1스푼 = 입자 0.1 mol · 🧂 소금 1스푼 = Na⁺·Cl⁻ 입자 0.2 mol`));
     const bP=lbar("증기 압력",190),bX=lbar("용질 입자",190),tm=el("div","note");b.append(bP.row,bX.row,tm);
     live.push(()=>{const s=p1State(NET.raid);bP.set(`${f2(s.P)} / ${f2(GOAL_P)} mmHg`,s.P/P0*100,s.P<=GOAL_P?"#6bc16b":"#e8802a");bX.set(`${f2(s.part)} mol (X=${f2(s.X)})`,s.part/(.3*(NET.raid.N||1))*100,"#6fd0ea");tm.textContent=clock()});
     if(mine){
@@ -2194,16 +2200,22 @@ function raidBuild(b){
     const rows=Object.keys(r.p1||{}).map(u=>`<tr><td>${(r.mem&&r.mem[u]&&r.mem[u].n)||"?"}</td><td>${r.p1[u].u|0}</td><td>${r.p1[u].a|0}</td></tr>`).join("");
     if(rows)b.append(el("div","",`<table><tr><th>이름</th><th>설탕</th><th>소금</th></tr>${rows}</table>`));
   }else if(r.st==="p2"){
-    head.textContent="② 끓어 넘침 — 끓는점을 높여라";
-    b.append(el("div","note",`솥이 점점 뜨거워져요. <b>솥 온도가 끓는점을 넘은 채 6초</b> 있으면 끓어 넘치고, <b>외부 압력이 ${PBURST.toFixed(1)} atm</b>을 넘으면 솥이 터져요. 각자 압력 밸브(한 칸 +0.1 atm, 최대 ${VMAX}칸)를 조절해 팀 전체의 압력을 맞추세요.<br><small>참고: 1.5 atm ≈ 112 ℃ · 2.0 atm ≈ 121 ℃ · 3.0 atm ≈ 134 ℃ (순수한 물 기준) + 용질 때문에 오른 끓는점 오름</small>`));
-    const bT=lbar("솥 온도",200),bB=lbar("끓는점",200),bPx=lbar("외부 압력",200),bM=lbar("과열 게이지",200),tm=el("div","note");
-    b.append(bT.row,bB.row,bPx.row,bM.row,tm);
+    head.textContent="② 과열 제어 — 끓어 넘침을 막아라";
+    b.append(el("div","note",`열원 온도가 올라요. <b>열원 온도가 끓는점을 넘는 과열이 누적 6초</b> 이어지면 끓어 넘치고, <b>외부 압력이 ${PBURST.toFixed(1)} atm</b>을 넘으면 솥이 터져요. 각자 압력 밸브(한 칸 +0.1 atm, 최대 ${VMAX}칸)로 팀의 압력을 맞춰 끓는점을 조절하세요.
+      <details style="margin-top:4px"><summary style="cursor:pointer;font-weight:bold">📘 끓는점 오름 · 압력 · 끓어 넘침, 무엇이 다를까?</summary>
+      • <b>용질 때문에 오르는 끓는점</b>(끓는점 오름): ΔTb = i·Kb·m. 1단계에서 넣은 용질의 양이 정하고, 밸브로는 바꿀 수 없어요.<br>
+      • <b>압력 때문에 바뀌는 끓는점</b>: 외부 압력이 오르면 끓는점도 올라요(클라우지우스–클라페롱).<br>
+      • <b>끓어 넘침</b>: 열원 온도가 끓는점을 넘는 과열이 이어질 때 격렬하게 끓어 넘치는 현상이에요. 끓는점을 높이면 과열을 늦출 수 있을 뿐, 끓는점 오름과 같은 현상은 아니에요.<br>
+      <small>참고(순수한 물): 1.5 atm ≈ 112 ℃ · 2.0 atm ≈ 121 ℃ · 3.0 atm ≈ 134 ℃</small></details>`));
+    const bT=lbar("열원 온도",200),bB=lbar("끓는점 Tb",200),bS=lbar("과열도 (T−Tb)",200),bPx=lbar("외부 압력",200),bM=lbar("끓어 넘침 위험",200),tm=el("div","note");
+    b.append(bT.row,bB.row,bS.row,bPx.row,bM.row,tm);
     live.push(()=>{
       const R_=NET.raid,e=(NET.be.now()-R_.t0)/1000,s=p2State(R_,e);
       bT.set(`${s.T.toFixed(1)} ℃`,(s.T-95)/40*100,s.T>s.Tb?"#e85a5a":"#e8802a");
-      bB.set(`${s.Tb.toFixed(1)} ℃ (용질 +${s.dTb.toFixed(1)})`,(s.Tb-95)/40*100,"#4a9ee0");
+      bB.set(`${s.Tb.toFixed(1)} ℃ (압력 기준 ${tbPure(s.Pext).toFixed(1)} + 용질 +${s.dTb.toFixed(1)})`,(s.Tb-95)/40*100,"#4a9ee0");
+      bS.set(`${s.T>s.Tb?"+":""}${(s.T-s.Tb).toFixed(1)} ℃${s.T>s.Tb?" 과열!":""}`,((s.T-s.Tb)+5)/10*100,s.T>s.Tb?"#e85a5a":"#6bc16b");
       bPx.set(`${s.Pext.toFixed(1)} atm / ${PBURST.toFixed(1)}`,s.Pext/PBURST*100,s.Pext>2.6?"#e85a5a":"#6bc16b");
-      bM.set(`${RD.meter.toFixed(1)} / 6`,RD.meter/6*100,RD.meter>3?"#e85a5a":"#cdb68a");
+      bM.set(`과열 누적 ${RD.meter.toFixed(1)} / 6초`,RD.meter/6*100,RD.meter>3?"#e85a5a":"#cdb68a");
       tm.textContent=clock();
     });
     if(mine){
