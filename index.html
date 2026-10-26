@@ -22,7 +22,7 @@
   #start.hasbg{background-size:cover;background-position:center;background-repeat:no-repeat}
   #start.hasbg>p,#start.hasbg #setup p{background:rgba(255,251,234,.84);border-radius:12px;padding:4px 14px}
   #start h1.logo{margin:0;text-shadow:none}
-  #start h1.logo img{display:block;max-width:min(460px,80vw);max-height:36vh;object-fit:contain}
+  #start h1.logo img{display:block;max-width:min(360px,70vw);max-height:34vh;object-fit:contain}
   #start.setting>p{display:none}
   #start.setting h1{font-size:34px;margin-bottom:2px}
   .mob #start.setting h1{font-size:28px}
@@ -2128,7 +2128,9 @@ const CUT_SHOTS=[
 ];
 // 컷신 배경 이미지(assets/cutscene/). 파일이 있고 불러오기에 성공한 경우에만 쓰고, 없거나 실패하면 기존 도형 그림으로 그린다.
 // 장면(샷)마다 파일이 있는 것만 이미지로 그리고, 나머지는 도형 그림이다. 이미지를 못 쓰게 하려면 파일을 빼면 된다.
-const CUT_IMG=["shot1","shot2","shot3","shot4","shot5"].map(n=>({src:`assets/cutscene/${n}.webp`,img:null,ok:false,loading:false}));
+// fx: 이미지에서 중심이 되는 가로 위치(0~1). 세로 모바일처럼 좁게 잘려 보일 때 이 위치를 화면 가운데로 맞춘다.
+const CUT_FX=[.5,.5,.7,.36,.5];
+const CUT_IMG=["shot1","shot2","shot3","shot4","shot5"].map((n,i)=>({src:`assets/cutscene/${n}.webp`,fx:CUT_FX[i],img:null,ok:false,loading:false}));
 function loadCutBg(){
   for(const e of CUT_IMG){
     if(e.img||e.loading)continue;e.loading=true;
@@ -2150,7 +2152,9 @@ function cutFg(){
 function cutDrawBg(im){
   const W=960,H=600,k=Math.max(W/im.naturalWidth,H/im.naturalHeight)*(1+.05*clamp(CUT.t/6,0,1)),w=im.naturalWidth*k,h=im.naturalHeight*k;
   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
-  ctx.drawImage(im,(W-w)/2,(H-h)/2,w,h);
+  const portrait=document.documentElement.classList.contains("portrait"),fx=CUT_IMG[CUT.shot]?CUT_IMG[CUT.shot].fx:.5;
+  const ox=portrait?clamp(W/2-fx*w,Math.min(0,W-w),0):(W-w)/2;   // 세로 모바일만 중심 위치를 가운데로, 그림은 항상 화면을 꽉 채운다
+  ctx.drawImage(im,ox,(H-h)/2,w,h);
   if(CUT.g<1.2){ctx.fillStyle=`rgba(0,0,0,${(1-CUT.g/1.2).toFixed(2)})`;ctx.fillRect(0,0,W,H)}
 }
 const sleepCut=ms=>new Promise(res=>{const t0=performance.now(),iv=setInterval(()=>{if(CUT.skip||performance.now()-t0>=ms){clearInterval(iv);res()}},40)});
@@ -2295,7 +2299,7 @@ function cutOverlay(){
     if(a>0){
       ctx.globalAlpha=a;ctx.lineWidth=8;ctx.strokeStyle="#8a4a10";ctx.fillStyle="#fff";
       // 세로 모바일은 가운데 좁은 폭만 보이므로 두 줄로 나눠 양옆이 잘리지 않게 한다
-      const lines=document.documentElement.classList.contains("portrait")?[["화학 섬",300],["이야기",375]]:[["화학 섬 이야기",330]];
+      const lines=document.documentElement.classList.contains("portrait")?[["화학 섬",205],["이야기",285]]:[["화학 섬 이야기",235]];
       ctx.font=`bold ${lines.length>1?72:64}px ${FONT}`;
       for(const[t,y]of lines){ctx.strokeText(t,480,y);ctx.fillText(t,480,y)}
       ctx.globalAlpha=1}
