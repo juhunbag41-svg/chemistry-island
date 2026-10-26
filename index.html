@@ -19,6 +19,10 @@
   #skip{display:none;position:absolute;right:14px;top:12px;z-index:30;font:inherit;font-size:14px;font-weight:bold;background:rgba(255,251,234,.92);border:3px solid #9b6b43;border-radius:20px;padding:3px 14px;cursor:pointer;color:#4a3326}
   .cutscene #skip{display:block}
   .cutscene .pill,.cutscene #hint,.cutscene #touch,.cutscene #mobcap,.cutscene #mobmenu{display:none!important}
+  #start.hasbg{background-size:cover;background-position:center;background-repeat:no-repeat}
+  #start.hasbg>p,#start.hasbg #setup p{background:rgba(255,251,234,.84);border-radius:12px;padding:4px 14px}
+  #start h1.logo{margin:0;text-shadow:none}
+  #start h1.logo img{display:block;max-width:min(360px,70vw);max-height:34vh;object-fit:contain}
   #start.setting>p{display:none}
   #start.setting h1{font-size:34px;margin-bottom:2px}
   .mob #start.setting h1{font-size:28px}
@@ -1460,7 +1464,9 @@ function drawFireflies(){
 function render(){
   const fr=Math.floor(time*1.8)%4;labels.length=0;
   if(scene==="cut"){
-    cutRender();ctx.imageSmoothingEnabled=false;ctx.drawImage(wc,0,0,VW*SC,VH*SC);cutOverlay();
+    const bg=cutBg();
+    if(bg){cutDrawBg(bg);cutFg()}else{cutRender();ctx.imageSmoothingEnabled=false;ctx.drawImage(wc,0,0,VW*SC,VH*SC)}
+    cutOverlay();
     if(fade.a>0){ctx.fillStyle=`rgba(20,16,24,${fade.a})`;ctx.fillRect(0,0,960,600)}
     return;
   }
@@ -2120,13 +2126,44 @@ const CUT_SHOTS=[
   {ms:8000,cap:""},
   {ms:6000,cap:""}
 ];
+// 컷신 배경 이미지(assets/cutscene/). 파일이 있고 불러오기에 성공한 경우에만 쓰고, 없거나 실패하면 기존 도형 그림으로 그린다.
+// 장면(샷)마다 파일이 있는 것만 이미지로 그리고, 나머지는 도형 그림이다. 이미지를 못 쓰게 하려면 파일을 빼면 된다.
+// fx: 이미지에서 중심이 되는 가로 위치(0~1). 세로 모바일처럼 좁게 잘려 보일 때 이 위치를 화면 가운데로 맞춘다.
+const CUT_FX=[.5,.5,.7,.36,.5];
+const CUT_IMG=["shot1","shot2","shot3","shot4","shot5"].map((n,i)=>({src:`assets/cutscene/${n}.webp`,fx:CUT_FX[i],img:null,ok:false,loading:false}));
+function loadCutBg(){
+  for(const e of CUT_IMG){
+    if(e.img||e.loading)continue;e.loading=true;
+    try{const im=new Image();im.onload=()=>{if(im.naturalWidth>0){e.img=im;e.ok=true}};im.onerror=()=>{e.ok=false;e.loading=false};im.src=e.src}
+    catch(_){e.loading=false}
+  }
+}
+const cutBg=()=>{const e=CUT_IMG[CUT.shot];return e&&e.ok?e.img:null};
+// 이미지 위에 얹는 앞쪽 요소: 샷 3의 접속자 실루엣(갑판 앞). 샷 4는 이미지의 부두 위치가 정해져 있어 돌턴을 얹지 않는다.
+function cutFg(){
+  CUT.labels=[];   // 이전 샷의 이름표가 남지 않게 매번 비운다
+  if(CUT.shot!==2)return;
+  g.clearRect(0,0,VW,VH);
+  const n=CUT.crew.length,sp=Math.min(30,Math.floor(168/Math.max(1,n))),bob=Math.round(Math.sin(CUT.g*1.3));
+  CUT.crew.forEach((m,i)=>cutFigure(160+(i-(n-1)/2)*sp,196+bob,m,m.n));
+  ctx.imageSmoothingEnabled=false;ctx.drawImage(wc,0,0,VW*SC,VH*SC);
+}
+// 화면을 꽉 채우고(cover) 가운데 기준으로 천천히 확대한다. 세로 모바일은 캔버스를 가운데 기준으로 잘라 보여 주므로 섬과 증기 기둥이 남는다.
+function cutDrawBg(im){
+  const W=960,H=600,k=Math.max(W/im.naturalWidth,H/im.naturalHeight)*(1+.05*clamp(CUT.t/6,0,1)),w=im.naturalWidth*k,h=im.naturalHeight*k;
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+  const portrait=document.documentElement.classList.contains("portrait"),fx=CUT_IMG[CUT.shot]?CUT_IMG[CUT.shot].fx:.5;
+  const ox=portrait?clamp(W/2-fx*w,Math.min(0,W-w),0):(W-w)/2;   // 세로 모바일만 중심 위치를 가운데로, 그림은 항상 화면을 꽉 채운다
+  ctx.drawImage(im,ox,(H-h)/2,w,h);
+  if(CUT.g<1.2){ctx.fillStyle=`rgba(0,0,0,${(1-CUT.g/1.2).toFixed(2)})`;ctx.fillRect(0,0,W,H)}
+}
 const sleepCut=ms=>new Promise(res=>{const t0=performance.now(),iv=setInterval(()=>{if(CUT.skip||performance.now()-t0>=ms){clearInterval(iv);res()}},40)});
 function setCap(t){const c=$("cap");c.textContent=t||"";c.style.opacity=t?1:0}
 // 샷 3 시작 시점에 접속해 있는 사람(없으면 NPC 실루엣). 연결이 늦어도 컷신은 멈추지 않는다.
 function cutCrew(){
-  const crew=[{n:S.flags.nick||"나",c:SHIRTS[S.shirt%5]}];let real=false;
-  if(NET.ok&&NET.be){const now=NET.be.now();for(const u in NET.players){const p=NET.players[u];if(!p||u===NET.uid||isMine(u)||now-p.t>STALE)continue;crew.push({n:String(p.n||"?").slice(0,8),c:SHIRTS[(p.s|0)%5]});real=true;if(crew.length>=6)break}}
-  if(!real)for(const[n,c]of[["보일","#4a9ee0"],["샤를","#e8802a"],["연구원","#6bc16b"]])crew.push({n,c});
+  const crew=[{n:S.flags.nick||"나",s:S.shirt%5,c:SHIRTS[S.shirt%5]}];let real=false;
+  if(NET.ok&&NET.be){const now=NET.be.now();for(const u in NET.players){const p=NET.players[u];if(!p||u===NET.uid||isMine(u)||now-p.t>STALE)continue;const s=(p.s|0)%5;crew.push({n:String(p.n||"?").slice(0,8),s,c:SHIRTS[s]});real=true;if(crew.length>=6)break}}
+  if(!real)for(const[n,s]of[["보일",1],["샤를",3],["연구원",2]])crew.push({n,s,c:SHIRTS[s]});
   CUT.crew=crew;CUT.real=real;
 }
 async function runIntro(){
@@ -2144,9 +2181,9 @@ function beginIntro(){
   buildPlazaOnce();lastOut=START_POS.slice();
   P.x=PLZ.spawn[0];P.y=PLZ.spawn[1];P.dir=3;
   S.flags.intro=1;TUT.emoted=false;
-  Object.assign(CUT,{on:true,skip:false,t:0,g:0,shot:0,crew:[],real:false,labels:[]});
-  scene="cut";CUR=null;target=null;
-  document.documentElement.classList.add("cutscene");
+  Object.assign(CUT,{on:true,skip:false,t:0,g:0,shot:0,crew:[],real:false,labels:[],dA:null});
+  scene="cut";CUR=null;target=null;cam.x=cam.y=0;   // 컷신 그리기는 화면 좌표 그대로 쓴다
+  document.documentElement.classList.add("cutscene");dispatchEvent(new Event("resize"));   // 모바일 레이아웃을 컷신용으로 다시 계산
   netConnect();   // 컷신이 연결 대기 시간을 가려 준다
   runIntro().catch(e=>console.warn("컷신 오류:",e)).then(finishIntro);
 }
@@ -2154,7 +2191,7 @@ function finishIntro(){
   setCap("");
   fadeTo(()=>{
     scene="plaza";CUR=null;P.x=PLZ.spawn[0];P.y=PLZ.spawn[1];P.dir=3;camSnap();
-    document.documentElement.classList.remove("cutscene");CUT.on=false;
+    document.documentElement.classList.remove("cutscene");dispatchEvent(new Event("resize"));CUT.on=false;
     for(const k in keys)keys[k]=false;
     $("hint").textContent=HINT_PLAZA;
     if(!NET.ok&&!NET.connecting)netConnect();
@@ -2171,16 +2208,27 @@ function cutSky(p){
   for(let y=0;y<112;y++)Q(0,y,VW,1,mixc(top,bot,y/112));
   const a=1-p;
   if(a>.02)for(let i=0;i<46;i++){const tw=.35+.65*Math.abs(Math.sin(CUT.g*1.7+i));Q(hh(i,7,1)%VW,hh(i,9,2)%100,1,1,`rgba(255,255,255,${(a*tw).toFixed(2)})`)}
+  // 달(밤) / 수평선의 해(새벽)
+  if(a>.05){for(const[r,al]of[[24,.05],[17,.08],[12,.14]])Cd(200,36,r,`rgba(220,230,255,${(al*a).toFixed(3)})`);Cd(200,36,8,`rgba(242,246,255,${(.95*a).toFixed(2)})`);Cd(197,34,2,`rgba(190,200,225,${(.7*a).toFixed(2)})`);Cd(203,39,1,`rgba(190,200,225,${(.7*a).toFixed(2)})`)}
+  if(p>.4){const k=(p-.4)/.6;for(const[r,al]of[[34,.10],[24,.16],[15,.3]])Cd(160,112,r,`rgba(255,214,150,${(al*k).toFixed(3)})`);Cd(160,112,9,`rgba(255,238,190,${(.9*k).toFixed(2)})`)}
+  // 천천히 흐르는 구름
+  for(let i=0;i<5;i++){const x=((hh(i,3,5)%420)+CUT.g*(2+i*.7))%420-60,y=14+i*16;Q(x,y,46+i*9,3,`rgba(255,255,255,${(.05*(1-p*.4)).toFixed(3)})`);Q(x+10,y-2,26+i*5,2,`rgba(255,255,255,${(.06*(1-p*.4)).toFixed(3)})`)}
 }
 function cutSea(p){
   Q(0,112,VW,VH-112,mixc("#10285a","#4aa0c8",p));
   for(let y=114;y<VH;y+=3){const o=Math.sin(CUT.g*.9+y*.4)*6;for(let x=-12;x<VW;x+=34)Q(x+o+(y%7)*3,y,14,1,`rgba(255,255,255,${((.07+.05*Math.sin(CUT.g+x))*(.4+p)).toFixed(2)})`)}
+  // 달빛이 바다에 비친 길
+  if(p<.6)for(let i=0;i<12;i++){const w=Math.max(2,12-i),x=200+Math.sin(CUT.g*1.4+i)*3;Q(x-w/2,114+i*5,w,1,`rgba(235,240,255,${((.45*(1-i/12))*(1-p)).toFixed(2)})`)}
 }
 // 섬의 실루엣과 중앙 증류솥. 솥 꼭대기 좌표를 돌려준다.
 function cutIsland(cx,base,sc,p){
   const c1=mixc("#0c1a22","#3f7f4a",p*.8+.1),c2=mixc("#14262c","#6db35c",p*.8+.1),w=46*sc;
   Q(cx-w,base-3*sc,w*2,3*sc,c1);Q(cx-w*.8,base-6*sc,w*1.6,3*sc,c2);Q(cx-w*.5,base-9*sc,w,3*sc,c1);
+  Q(cx-w-2,base,w*2+4,1,"rgba(255,255,255,.35)");   // 해안의 물거품
+  Cd(cx-w*.62,base-8*sc,3*sc,c2);Cd(cx+w*.6,base-8*sc,3.4*sc,c2);Cd(cx+w*.42,base-10*sc,2.4*sc,c1);   // 나무 덩어리
+  if(p<.9){const wl=`rgba(255,208,120,${(.95*(1-p)).toFixed(2)})`;Q(cx-w*.38,base-5*sc,2,2,wl);Q(cx+w*.3,base-5*sc,2,2,wl);Q(cx-w*.1,base-6*sc,2,2,wl)}   // 연구소 창문 불빛
   Q(cx-4*sc,base-14*sc,8*sc,6*sc,"#2c2c38");Q(cx-6*sc,base-16*sc,12*sc,3*sc,"#3a3a48");Q(cx-1.5*sc,base-20*sc,3*sc,5*sc,"#3a3a48");
+  Q(cx-4*sc,base-14*sc,8*sc,1,"#4a4a5c");Q(cx-3*sc,base-12*sc,2*sc,2*sc,p<.9?"rgba(255,150,70,.85)":"#4a4a5c");   // 솥 입구의 불빛
   return{x:cx,y:base-20*sc};
 }
 function cutSteam(x,y,size,yel,fl){
@@ -2189,18 +2237,34 @@ function cutSteam(x,y,size,yel,fl){
     Cd(xx,yy,r,`rgba(255,255,${Math.round(255-yel*120)},${al.toFixed(2)})`);
   }
 }
-function cutFigure(x,fy,col,label){
-  const sil=mixc(col,"#0b1020",.4);
+// 게임 속 캐릭터 스프라이트(뒷모습)를 밤색으로 살짝 어둡게 칠해 쓴다. 스프라이트가 없으면 단색 실루엣으로 대체한다.
+const CUT_TINT={};
+function cutSprite(s){
+  const C=SPR.ok&&SPR.man&&SPR.man.chars,im=C&&SPR.img["player"+s];if(!im)return null;
+  if(!CUT_TINT[s]){const c=document.createElement("canvas");c.width=C.fw;c.height=C.fh;const x=c.getContext("2d");
+    x.drawImage(im,0,3*C.fh,C.fw,C.fh,0,0,C.fw,C.fh);x.globalCompositeOperation="source-atop";x.fillStyle="rgba(14,20,52,.30)";x.fillRect(0,0,C.fw,C.fh);CUT_TINT[s]=c}
+  return{c:CUT_TINT[s],C};
+}
+function cutFigure(x,fy,m,label){
+  const sp=cutSprite(m.s);
+  if(sp){Q(x-7,fy-2,14,3,"rgba(0,0,0,.28)");g.drawImage(sp.c,Math.round(x-sp.C.ax),Math.round(fy-sp.C.ay));if(label)CUT.labels.push([x,fy-sp.C.ay-5,label]);return}
+  const sil=mixc(m.c,"#0b1020",.4);
   Q(x-4,fy-14,8,11,sil);Q(x-3,fy-3,2,3,"#0b1020");Q(x+1,fy-3,2,3,"#0b1020");Cd(x,fy-18,4,mixc("#e8c9a8","#0b1020",.45));
   if(label)CUT.labels.push([x,fy-27,label]);
 }
+function cutLantern(x,y){
+  const f=.8+.2*Math.sin(CUT.g*7+x);
+  Q(x,y-16,1,16,"#3a2a22");Q(x-2,y-20,5,5,"#ffcf70");
+  for(const[r,al]of[[22,.05],[14,.08],[8,.13]])Cd(x,y-18,r,`rgba(255,190,100,${(al*f).toFixed(3)})`);
+}
 function cutDeck(top,showNames){
   const bob=Math.round(Math.sin(CUT.g*1.3));
-  Q(0,top+bob,VW,VH-top,"#2a1d18");Q(0,top+bob,VW,4,"#5a4030");
+  Q(0,top+bob,VW,VH-top,"#2a1d18");Q(0,top+bob,VW,4,"#5a4030");Q(0,top+bob,VW,1,"#7a5a40");
   for(let x=0;x<VW;x+=16)Q(x,top+bob+4,2,10,"#4a3426");
-  for(let y=top+18;y<VH;y+=8)Q(0,y+bob,VW,1,"#3a2a22");
-  const n=CUT.crew.length,sp=Math.min(24,Math.floor(150/Math.max(1,n)));
-  CUT.crew.forEach((m,i)=>cutFigure(160+(i-(n-1)/2)*sp,top+bob+22,m.c,showNames?m.n:null));
+  for(let y=top+18,i=0;y<VH;y+=8,i++){Q(0,y+bob,VW,7,i%2?"#2e2019":"#332319");Q(0,y+bob,VW,1,"#3f2d22")}
+  cutLantern(36,top+bob+4);cutLantern(284,top+bob+4);
+  const n=CUT.crew.length,sp=Math.min(30,Math.floor(168/Math.max(1,n)));
+  CUT.crew.forEach((m,i)=>cutFigure(160+(i-(n-1)/2)*sp,top+bob+22,m,showNames?m.n:null));
 }
 function cutRender(){
   CUT.labels=[];
@@ -2216,11 +2280,12 @@ function cutRender(){
   }else if(s===3){
     const p=clamp(.25+t/8*.75,0,1);
     cutSky(p);cutSea(p);const pot=cutIsland(160,113,1.5,p);cutSteam(pot.x,pot.y,.55,.6,.8);
-    Q(116,113,24,3,"#8a5a34");
-    const wv=Math.sin(G*6)>0;Q(125,101,6,10,"#f4f4f4");Cd(128,97,3,"#f0c8a0");Q(125,93,6,2,"#d8d8e0");Q(132,wv?92:97,2,6,"#f4f4f4");
-    cutDeck(170,false);
+    Q(112,113,30,3,"#8a5a34");Q(112,116,30,1,"#5a3a24");Q(114,116,2,5,"#5a3a24");Q(138,116,2,5,"#5a3a24");   // 부두
+    if(!CUT.dA){CUT.dA=mkAnim(3);CUT.dA.pose="wave";CUT.dA.poseT=999}
+    person(126,113,0,0,false,PAL_D,CUT.dA);   // 손을 흔드는 돌턴 박사(게임 속 스프라이트)
+    cutDeck(176,false);
   }else{
-    cutSky(1);cutSea(1);
+    cutSky(1);cutSea(1);cutIsland(160,115,.8,1);
     const k=clamp(t/3,0,1);
     for(let i=0;i<16;i++){const a=i/16*6.283+G*.5,R_=(1-k)*70+4;Cd(160+Math.cos(a)*R_,90+Math.sin(a)*R_*.6,Math.round(4+k*6),"rgba(255,255,255,.35)")}
   }
@@ -2231,18 +2296,31 @@ function cutOverlay(){
   for(const[lx,ly,t]of CUT.labels){const sx=lx*SC,sy=ly*SC;ctx.lineWidth=4;ctx.strokeStyle="rgba(10,14,30,.85)";ctx.strokeText(t,sx,sy);ctx.fillStyle="#fff7d6";ctx.fillText(t,sx,sy)}
   if(CUT.shot===4){
     const a=clamp((CUT.t-1.5)/1.5,0,1);
-    if(a>0){ctx.globalAlpha=a;ctx.font=`bold 64px ${FONT}`;ctx.lineWidth=8;ctx.strokeStyle="#8a4a10";ctx.strokeText("화학 섬 이야기",480,330);ctx.fillStyle="#fff";ctx.fillText("화학 섬 이야기",480,330);ctx.globalAlpha=1}
+    if(a>0){
+      ctx.globalAlpha=a;ctx.lineWidth=8;ctx.strokeStyle="#8a4a10";ctx.fillStyle="#fff";
+      // 세로 모바일은 가운데 좁은 폭만 보이므로 두 줄로 나눠 양옆이 잘리지 않게 한다
+      const lines=document.documentElement.classList.contains("portrait")?[["화학 섬",205],["이야기",285]]:[["화학 섬 이야기",235]];
+      ctx.font=`bold ${lines.length>1?72:64}px ${FONT}`;
+      for(const[t,y]of lines){ctx.strokeText(t,480,y);ctx.fillText(t,480,y)}
+      ctx.globalAlpha=1}
   }
 }
 // ---- 시작 화면: 이름·셔츠 색 정하기
+// 시작 화면 배경(assets/title/title_bg.webp)과 로고(assets/logo/logo.png): 파일이 있고 불러오기에 성공했을 때만 쓴다.
+function loadTitleArt(){
+  const st=$("start"),h=st.querySelector("h1");
+  const bg=new Image();bg.onload=()=>{if(bg.naturalWidth>0){st.style.backgroundImage="url(assets/title/title_bg.webp)";st.classList.add("hasbg")}};bg.onerror=()=>{};bg.src="assets/title/title_bg.webp";
+  const lg=new Image();lg.onload=()=>{if(lg.naturalWidth>0){lg.alt="화학 섬 이야기";h.textContent="";h.classList.add("logo");h.append(lg)}};lg.onerror=()=>{};lg.src="assets/logo/logo.png";
+}
 function initSetup(){
+  loadTitleArt();
   const box=$("sshirts"),inp=$("snick");let pick=0;
   SHIRTS.forEach((c,i)=>{const b=el("button","sw");b.type="button";b.style.background=c;b.setAttribute("aria-label","셔츠 색 "+(i+1));
     b.onclick=()=>{pick=i;[...box.children].forEach((x,j)=>x.classList.toggle("on",j===i))};box.append(b)});
   box.children[0].classList.add("on");
   const go=()=>{const v=cleanNick(inp.value);if(!v){$("smsg").textContent="이름을 1자 이상 입력해 주세요. (한글·영문·숫자 8자까지)";return}startGame(false,{nick:v,shirt:pick})};
   $("bgo").onclick=go;inp.onkeydown=e=>{if(e.key==="Enter")go()};
-  $("bnew").onclick=()=>{$("smain").style.display="none";$("setup").style.display="block";$("start").classList.add("setting");setTimeout(()=>inp.focus(),30)};
+  $("bnew").onclick=()=>{loadCutBg();$("smain").style.display="none";$("setup").style.display="block";$("start").classList.add("setting");setTimeout(()=>inp.focus(),30)};
   $("bback").onclick=()=>{$("setup").style.display="none";$("smain").style.display="block";$("start").classList.remove("setting")};
   $("skip").onclick=()=>{CUT.skip=true};
 }
@@ -2447,7 +2525,7 @@ function layout(){
   root.classList.toggle("mob",st.mob);root.classList.toggle("touch",st.ctl);
   root.classList.toggle("portrait",st.mob&&portrait);root.classList.toggle("landscape",st.mob&&!portrait);
   root.style.setProperty("--vw",vw+"px");root.style.setProperty("--vh",vh+"px");
-  const ctrl=st.mob&&st.ctl&&portrait?Math.round(Math.min(230,Math.max(176,vh*.27))):0;
+  const ctrl=st.mob&&st.ctl&&portrait&&!root.classList.contains("cutscene")?Math.round(Math.min(230,Math.max(176,vh*.27))):0;   // 컷신 중에는 조작 패드가 없으니 그 자리까지 화면으로 쓴다
   root.style.setProperty("--ctrl",ctrl+"px");
   releaseAll();menu.classList.remove("open");
   if(!st.mob){cv.style.width="";cv.style.height="";cv.style.transform="";lastT="";st.aw=0;return}
