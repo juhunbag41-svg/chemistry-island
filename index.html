@@ -1503,6 +1503,7 @@ function render(){
   {const c=dayTint(),m=scene==="out"||scene==="plaza"?1:.4,r=Math.round(255+(c[0]-255)*m),gg=Math.round(255+(c[1]-255)*m),bb=Math.round(255+(c[2]-255)*m);
     if(r<255||gg<255||bb<255){g.globalCompositeOperation="multiply";g.fillStyle=`rgb(${r},${gg},${bb})`;g.fillRect(0,0,VW,VH);g.globalCompositeOperation="source-over"}}
   if(scene==="out"){drawLights();drawFireflies()}
+  if(scene==="plaza")plazaRaidFx();
   ctx.imageSmoothingEnabled=false;ctx.drawImage(wc,0,0,VW*SC,VH*SC);
   // 라벨/프롬프트
   ctx.textAlign="center";ctx.font=`bold 13px ${FONT}`;ctx.lineJoin="round";
@@ -1661,7 +1662,7 @@ function netLeave(){
   try{if(NET.ok&&NET.raid&&NET.raid.st==="lobby"&&isMem(NET.raid))raidLeave()}catch(e){}
   NET.tok++;NET.connecting=false;NET.pending=null;for(const u of NET.subs){try{u()}catch(e){}}NET.subs=[];
   if(NET.ok&&NET.be&&NET.path){try{NET.be.remove(NET.path)}catch(e){}}
-  NET.ok=false;NET.kicked=false;NET.playersReady=false;NET.players={};NET.remote={};NET.raid=null;NET.count=0;PLZ.myEmo=null;RD.liveFn=null;RD.last="";RD.dead=0;RD.ghost={};RD.drv=false;
+  NET.ok=false;NET.kicked=false;NET.playersReady=false;NET.players={};NET.remote={};NET.raid=null;NET.count=0;PLZ.myEmo=null;RD.liveFn=null;RD.last="";RD.dead=0;RD.ghost={};RD.drv=false;RD.danger=0;RD.flash=0;
 }
 // 같은 계정(UID)의 접속인가? (내 것 포함, 예전 방식의 UID 그대로인 키도 포함)
 const isMine=k=>!!NET.auth&&(k===NET.auth||k.startsWith(NET.auth+"_"));
@@ -1795,6 +1796,7 @@ function plazaUpdate(dt){
   }
   if(PLZ.dA){const typing=!!dl&&dl.shown<dl.text.length&&dl.who===DN;animChar(PLZ.dA,27*16+8,21*16+12,0,dt,7,typing,["adjust"])}
   if(NET.ok){netSend(dt);raidTick(dt)}
+  raidFxUpdate(dt);
   PLZ.hud-=dt;if(PLZ.hud<=0){PLZ.hud=.4;updatePlazaHud()}
 }
 function updatePlazaHud(){
@@ -1807,7 +1809,9 @@ function updatePlazaHud(){
   if(!r||!NET.ok){rh.style.display="none";return}
   const e=(NET.be.now()-r.t0)/1000,lim={p1:P1_TIME,p2:P2_TIME,p3:P3_TIME}[r.st];
   const nm={lobby:"모집 중",p1:"1단계 증기 방어막",p2:"2단계 끓어 넘침",p3:"3단계 가스 과압",won:"클리어!",lost:"실패"}[r.st]||"";
-  rh.style.display="block";rh.textContent=`🍲 레이드 ${nm}${lim?` · ${Math.max(0,Math.ceil(lim-e))}초`:""}${isMem(r)?"":" (관전)"}`;
+  const dd=RD.danger,act=r.st==="p1"||r.st==="p2"||r.st==="p3",warn=act&&dd>.6;
+  rh.style.display="block";rh.textContent=`${warn?"⚠ ":"🍲 "}레이드 ${nm}${lim?` · ${Math.max(0,Math.ceil(lim-e))}초`:""}${isMem(r)?"":" (관전)"}`;
+  rh.style.borderColor=act?(dd>.6?"#c0392b":dd>.35?"#d6892a":"#9b6b43"):"";rh.style.background=warn?"rgba(255,228,222,.96)":"";   // 위험할수록 알약의 테두리·바탕이 붉어진다
 }
 // 공동 광장 시각: 서버 시각(be.now())에서 계산한다. 저장·전송하는 값이 없고 늦게 들어와도 같은 값이 나온다.
 // 속도는 개인 섬과 같다(실시간 1초 = 게임 2분, 하루 12분). 광장에 있는 동안 개인 시계(S.min)는 멈춰 있다.
@@ -1851,20 +1855,45 @@ function plazaSupply(){
 function drawPlzObj(o){
   const x=o.tx*16,y=o.ty*16;
   if(o.sub==="golem"){
-    const st=NET.raid?NET.raid.st:"idle",t=time,act=st==="p1"||st==="p2"||st==="p3";
-    const sh=act?Math.round(Math.sin(t*28)*(st==="p2"?1.4:.7)):0;
-    const eye={idle:"#ffd84a",lobby:"#ffd84a",p1:"#6fd0ea",p2:"#ff6a4a",p3:"#b58cff",won:"#6bc16b",lost:"#555a66"}[st]||"#ffd84a";
+    // 상태(위험도 RD.danger)에 따라 증기 색·흔들림·경고등·압력계·밸브 바퀴·바닥 경고 고리가 달라진다. 연출만 바꾸고 판정은 건드리지 않는다.
+    const st=NET.raid?NET.raid.st:"idle",t=time,act=st==="p1"||st==="p2"||st==="p3",d=act?RD.danger:st==="lost"?1:0,rs=REDUCE?.3:1;
+    const sh=act?Math.round(Math.sin(t*28)*(.5+2.4*d)*rs):0;
+    const eyeBase={idle:"#ffd84a",lobby:"#ffd84a",p1:"#6fd0ea",p2:"#ff6a4a",p3:"#b58cff",won:"#6bc16b",lost:"#555a66"}[st]||"#ffd84a";
+    const eye=act&&d>.7&&Math.floor(t*(REDUCE?1:4))%2?"#ff4a3a":eyeBase;   // 위험하면 눈이 붉게 깜빡인다
+    const[sr,sg,sb]=steamRGB(d);
+    if(act&&d>.45){   // 바닥의 위험 구역 표시: 점선 고리가 위험할수록 진해지고 천천히 돈다
+      const al=(.25+.45*(d-.45)/.55).toFixed(2),ph=REDUCE?0:Math.floor(t*4);
+      for(let i=0;i<44;i++){if((i+ph)%3)continue;const a=i/44*6.283;R(x+32+Math.cos(a)*(46+(REDUCE?0:Math.sin(t*3)*2)),y+44+Math.sin(a)*11,2,1,`rgba(255,70,50,${al})`)}
+    }
     R(x+2,y+42,60,5,"rgba(0,0,0,.22)");
     R(x+10,y+36,12,9,"#4a4a58");R(x+42,y+36,12,9,"#4a4a58");
     R(x+6+sh,y+12,52,26,"#686c7c");R(x+8+sh,y+14,48,22,"#8a8ea2");R(x+8+sh,y+14,48,4,"#aab0c6");R(x+8+sh,y+34,48,2,"#6a6e80");
     R(x+3+sh,y+8,58,6,"#4e5264");R(x+3+sh,y+8,58,2,"#6a6e84");R(x+26+sh,y+2,12,7,"#4e5264");R(x+29+sh,y-1,6,3,"#cfd6dc");
     R(x+0+sh,y+18,6,6,"#4e5264");R(x+58+sh,y+18,6,6,"#4e5264");R(x+1+sh,y+20,4,2,"#6a6e84");R(x+59+sh,y+20,4,2,"#6a6e84");
+    // 밸브 바퀴: 열기(위험도)가 올라갈수록 빨리 돈다
+    {const rot=Math.floor(t*(act?2+6*d:0))%2,wc_="#d9c34a";
+      for(const cx of[x+3+sh,x+61+sh]){
+        if(!act||!rot){R(cx-3,y+21,7,1,wc_);R(cx,y+18,1,7,wc_)}
+        else for(let k=-3;k<=3;k++){R(cx+k,y+21+k,1,1,wc_);R(cx+k,y+21-k,1,1,wc_)}
+      }}
     R(x+17+sh,y+20,10,9,"#2a2a34");R(x+37+sh,y+20,10,9,"#2a2a34");R(x+19+sh,y+22,6,5,eye);R(x+39+sh,y+22,6,5,eye);
     R(x+21+sh,y+23,2,2,"#fff");R(x+41+sh,y+23,2,2,"#fff");
+    // 압력계: 2단계에서는 외부 압력이 파열선(3.0 atm)에 얼마나 가까운지, 그 밖에는 위험도를 바늘로 보여 준다
+    {let f=d;if(st==="p2"&&NET.raid&&NET.ok)f=clamp((p2State(NET.raid,(NET.be.now()-NET.raid.t0)/1000).Pext-1)/(PBURST-1),0,1);
+      R(x+28+sh,y+20,8,8,"#2a2a34");R(x+29+sh,y+21,6,6,"#e8e4d4");R(x+29+sh,y+26,2,1,"#6bc16b");R(x+31+sh,y+26,2,1,"#e8c84a");R(x+33+sh,y+26,2,1,"#e85a5a");
+      const a=Math.PI*(1+f);for(let k=1;k<=3;k++)R(x+32+Math.cos(a)*k+sh,y+26+Math.sin(a)*k,1,1,"#c0392b")}
     if(st==="won"){R(x+22+sh,y+31,20,2,"#2a2a34");R(x+20+sh,y+30,2,2,"#2a2a34");R(x+42+sh,y+30,2,2,"#2a2a34")}
     else if(st==="lost"){R(x+22+sh,y+31,20,2,"#2a2a34");R(x+20+sh,y+33,2,2,"#2a2a34");R(x+42+sh,y+33,2,2,"#2a2a34")}
     else{R(x+22+sh,y+31,20,3,"#2a2a34");for(let i=0;i<4;i++)R(x+24+i*4+sh,y+31,2,2,"#f0f0f0")}
-    if(act||st==="lobby"){for(let i=0;i<3;i++){const p=(t*.9+i*.33)%1;R(x+14+i*18+Math.round(Math.sin(t*3+i)*3),y-4-Math.round(p*18),4,4,`rgba(255,255,255,${(.7*(1-p)).toFixed(2)})`)}}
+    // 경고등(뚜껑 위)
+    if(act&&d>.5)R(x+30+sh,y-4,4,3,Math.floor(t*(REDUCE?1:2+2*d))%2?"#ff4a3a":"#5a1a14");
+    // 증기: 위험해질수록 많고 빠르고 높이 올라가며 색이 흰색→노랑→주황→붉은색으로 바뀐다(모바일은 입자를 줄인다)
+    if(act||st==="lobby"){
+      const n=Math.max(3,Math.round((act?4+8*d:3)*(document.documentElement.classList.contains("mob")?.6:1))),sp=.7+1.2*d;
+      for(let i=0;i<n;i++){const p=(t*sp+i/n)%1,sz=3+Math.round(p*3*(1+d));R(x+10+((i*37)%44)+Math.round(Math.sin(t*3+i)*3),y-4-Math.round(p*(18+22*d)),sz,sz,`rgba(${sr},${sg},${sb},${(.75*(1-p)).toFixed(2)})`)}
+    }else if(st==="won"){   // 진정되면 초록빛 반짝임이 천천히 오른다
+      for(let i=0;i<8;i++){const p=(t*.5+i/8)%1;R(x+4+(i*8)%56,y+34-Math.round(p*40),2,2,`rgba(160,255,170,${(.9*(1-p)).toFixed(2)})`)}
+    }
   }else if(o.sub==="dalton"){
     person(x+8,y+12,0,0,false,PAL_D,PLZ.dA);labels.push([x+8,y+12-34,DN]);
   }else if(o.sub==="crate"){
@@ -1891,7 +1920,8 @@ function drawPlzObj(o){
 const P1_TIME=150,P2_TIME=45,P2_RISE=40,P2_GRACE=3,P3_TIME=150,CAP1=8,VMAX=5,PBURST=3.0,GOAL_X=.06,RAID_MAX=8;
 // dead: 살아 있는 참가자가 없는 채로 흐른 시간(초), ghost: 참가자별로 끊긴 채 흐른 시간, drv: 내가 판정자로 일하는 중인지
 // deadAfter/ghostAfter 는 시험할 때 줄여 쓸 수 있도록 값으로 둔다.
-const RD={acc:0,sig:"",last:"",meter:0,done:0,liveFn:null,add:{u:0,a:0},v3:{n2:0,o2:0,he:0},dead:0,ghost:{},drv:false,deadAfter:60,ghostAfter:30,rr:0};
+// danger: 연출용 위험도(0~1, 부드럽게 따라감), flash: 단계 전환 섬광의 남은 시간(초), flashSt: 전환된 단계
+const RD={acc:0,sig:"",last:"",meter:0,done:0,liveFn:null,add:{u:0,a:0},v3:{n2:0,o2:0,he:0},dead:0,ghost:{},drv:false,deadAfter:60,ghostAfter:30,rr:0,danger:0,flash:0,flashSt:""};
 const GOAL_P=P0*(1-GOAL_X);
 const rMem=r=>Object.keys((r&&r.mem)||{});
 const isMem=r=>!!(r&&r.mem&&NET.uid&&r.mem[NET.uid]);
@@ -1923,6 +1953,47 @@ const need3=N=>({n2:Math.max(2,Math.ceil(N*.8)),o2:Math.max(1,Math.ceil(N*.4)),h
 function use3(r){const t={n2:0,o2:0,he:0},o=(r.p3&&r.p3.use)||{};for(const k in o)for(const g_ in t)t[g_]+=o[k][g_]|0;return t}
 const GAS=[["n2","질소 N₂","#4a7ee0"],["o2","산소 O₂","#e85a5a"],["he","헬륨 He","#e8b830"]];
 
+// ----- 연출 전용: 위험도·증기 색·경고 효과 (게임 판정과 서버 데이터는 읽기만 한다) -----
+// 위험도는 이미 계산해 두는 값(증기 압력, 과열 누적, 외부 압력, 남은 시간)에서 정한다. 모든 참가자·구경꾼이 같은 값을 본다.
+const REDUCE=!!(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches);   // 움직임 줄이기 설정이면 흔들림·섬광을 줄인다
+const STEAM_K=[[0,[240,248,255]],[.4,[255,236,150]],[.7,[255,160,70]],[1,[236,72,60]]];
+function steamRGB(d){d=clamp(d,0,1);for(let i=0;i<STEAM_K.length-1;i++){const a=STEAM_K[i],b=STEAM_K[i+1];if(d<=b[0]){const t=(d-a[0])/(b[0]-a[0]);return a[1].map((v,j)=>Math.round(v+(b[1][j]-v)*t))}}return STEAM_K[3][1]}
+function raidDanger(){
+  const r=NET.raid;if(!r||!NET.ok||!NET.be)return 0;
+  const e=(NET.be.now()-r.t0)/1000;
+  if(r.st==="won"||r.st==="lobby")return 0;
+  if(r.st==="lost")return 1;
+  if(r.st==="p1"){const s=p1State(r),prog=clamp(1-(s.P-GOAL_P)/(P0-GOAL_P),0,1);return clamp(.2+.6*clamp(e/P1_TIME,0,1)-.35*prog,0,1)}   // 시간이 갈수록 위험, 증기 압력이 목표에 가까울수록 안정
+  if(r.st==="p2"){const s=p2State(r,e);return clamp(Math.max(RD.meter/6,(s.Pext-1.5)/(PBURST-1.5)),0,1)}                                      // 과열 누적이 차오르거나 외부 압력이 파열선에 가까울수록 위험
+  if(r.st==="p3")return clamp(.25+.6*clamp(e/P3_TIME,0,1),0,1);
+  return .3;
+}
+function raidFxUpdate(dt){
+  RD.danger+=(raidDanger()-RD.danger)*Math.min(1,dt*3);
+  if(RD.flash>0)RD.flash=Math.max(0,RD.flash-dt);
+}
+// 화면 위 효과(낮밤 색조 위에 얹는다): 솥 주변 빛, 위험할 때 붉은 테두리, 단계 전환 섬광
+function plazaRaidFx(){
+  const r=NET.raid;if(!r||!NET.ok)return;
+  const st=r.st,act=st==="p1"||st==="p2"||st==="p3",d=RD.danger,t=time;
+  const gx=Math.round(22*16+32-cam.x),gy=Math.round(11*16+24-cam.y);
+  const fd=(cx,cy,rr)=>{for(let dy=-rr;dy<=rr;dy++){const w=Math.floor(Math.sqrt(rr*rr+rr*.8-dy*dy));g.fillRect(cx-w,cy+dy,w*2+1,1)}};
+  if(act||st==="lobby"||st==="won"){
+    const[sr,sg,sb]=steamRGB(act?d:0),k=act?.05+.09*d:.04;
+    g.globalCompositeOperation="lighter";
+    for(const[rr,al]of[[46,.4],[32,.7],[20,1]]){g.fillStyle=`rgba(${sr},${sg},${sb},${(k*al).toFixed(3)})`;fd(gx,gy,rr)}
+    g.globalCompositeOperation="source-over";
+  }
+  if(act&&d>.55){
+    const pulse=REDUCE?.6:.5+.5*Math.sin(t*4),a=(d-.55)/.45*.28*pulse;
+    for(let i=0;i<4;i++){g.fillStyle=`rgba(255,40,30,${(a*(1-i*.22)).toFixed(3)})`;const b=i*5;g.fillRect(0,b,VW,5);g.fillRect(0,VH-b-5,VW,5);g.fillRect(b,0,5,VH);g.fillRect(VW-b-5,0,5,VH)}
+  }
+  if(RD.flash>0&&!REDUCE){
+    const f=RD.flash/.9,c={p1:"120,210,240",p2:"255,150,70",p3:"180,140,255",won:"150,240,160",lost:"90,90,100"}[RD.flashSt]||"255,255,255";
+    g.fillStyle=`rgba(${c},${(f*f*.35).toFixed(3)})`;g.fillRect(0,0,VW,VH);
+  }
+}
+const RAID_BANNER={p1:"🍲 1단계 — 증기 방어막! 용질로 증기 압력을 낮춰요",p2:"🌡️ 2단계 — 솥이 뜨거워져요! 압력 밸브를 조절해요",p3:"⚗️ 3단계 — 가스가 차올라요! 분압을 맞춰요",won:"✨ 솥의 정령이 진정됐어요!",lost:"💥 솥이 불안정해졌어요…"};
 function raidLabel(){
   const r=NET.raid;
   if(!r)return"🍲 폭주하는 솥 골렘 (레이드 모집하기)";
@@ -2006,7 +2077,11 @@ function raidTick(dt){
     if(old.length){if(old.length===rMem(r).length)NET.be.remove(raidPath());else old.forEach(u=>NET.be.remove(`${raidPath()}/mem/${u}`))}
   }
   raidCleanup(r,live,step);
-  if(key!==RD.last){RD.last=key;RD.meter=0;RD.drv=false;raidOnState(r)}
+  if(key!==RD.last){
+    // 단계가 바뀌는 순간을 지켜본 경우(처음 들어와서 보는 것이 아닐 때) 섬광과 안내 문구를 보여 준다. 참가자·구경꾼 모두 같다.
+    if(RD.last&&RAID_BANNER[r.st]){RD.flash=.9;RD.flashSt=r.st;toast(RAID_BANNER[r.st],3200)}
+    RD.last=key;RD.meter=0;RD.drv=false;raidOnState(r);
+  }
   // 과열 누적: 판정자가 계산해 서버(hot)에 적어 두고, 나머지는 그 값을 읽는다. 판정자가 바뀌어도 거기서 이어 간다.
   if(r.st==="p2"){
     const s=p2State(r,e),hot=s.T>s.Tb;
