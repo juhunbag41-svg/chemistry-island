@@ -1657,14 +1657,16 @@ async function netConnect(){
   finally{if(tok===NET.tok)NET.connecting=false}
 }
 function netLeave(){
+  // 모집 중인 레이드에서 나갈 때는 참가자 목록에서도 빠진다(끊긴 참가자가 남지 않게)
+  try{if(NET.ok&&NET.raid&&NET.raid.st==="lobby"&&isMem(NET.raid))raidLeave()}catch(e){}
   NET.tok++;NET.connecting=false;NET.pending=null;for(const u of NET.subs){try{u()}catch(e){}}NET.subs=[];
   if(NET.ok&&NET.be&&NET.path){try{NET.be.remove(NET.path)}catch(e){}}
-  NET.ok=false;NET.kicked=false;NET.players={};NET.remote={};NET.raid=null;NET.count=0;PLZ.myEmo=null;RD.liveFn=null;RD.last="";
+  NET.ok=false;NET.kicked=false;NET.playersReady=false;NET.players={};NET.remote={};NET.raid=null;NET.count=0;PLZ.myEmo=null;RD.liveFn=null;RD.last="";RD.dead=0;RD.ghost={};RD.drv=false;
 }
 // 같은 계정(UID)의 접속인가? (내 것 포함, 예전 방식의 UID 그대로인 키도 포함)
 const isMine=k=>!!NET.auth&&(k===NET.auth||k.startsWith(NET.auth+"_"));
 function netPlayers(v){
-  const now=NET.be.now(),cur=v||{};NET.players=cur;let cnt=0,newer=false;
+  const now=NET.be.now(),cur=v||{};NET.players=cur;NET.playersReady=true;let cnt=0,newer=false;
   for(const uid in cur){
     const p=cur[uid];if(!p||typeof p.x!=="number")continue;
     if(uid!==NET.uid&&now-p.t>STALE)continue;
@@ -1887,15 +1889,18 @@ function drawPlzObj(o){
 // 3단계 가스 과압   — 목표 분압에 맞게 기체 캡슐을 넣는다 (돌턴의 부분 압력 법칙, P = nRT/V).
 // 서버가 없으므로 판정은 '드라이버'(접속 중인 참가자 중 uid가 가장 앞선 사람)의 브라우저가 맡고, 나머지는 같은 데이터를 보고 표시만 한다.
 const P1_TIME=150,P2_TIME=45,P2_RISE=40,P2_GRACE=3,P3_TIME=150,CAP1=8,VMAX=5,PBURST=3.0,GOAL_X=.06,RAID_MAX=8;
-const RD={acc:0,sig:"",last:"",meter:0,done:0,liveFn:null,add:{u:0,a:0},v3:{n2:0,o2:0,he:0}};
+// dead: 살아 있는 참가자가 없는 채로 흐른 시간(초), ghost: 참가자별로 끊긴 채 흐른 시간, drv: 내가 판정자로 일하는 중인지
+// deadAfter/ghostAfter 는 시험할 때 줄여 쓸 수 있도록 값으로 둔다.
+const RD={acc:0,sig:"",last:"",meter:0,done:0,liveFn:null,add:{u:0,a:0},v3:{n2:0,o2:0,he:0},dead:0,ghost:{},drv:false,deadAfter:60,ghostAfter:30,rr:0};
 const GOAL_P=P0*(1-GOAL_X);
 const rMem=r=>Object.keys((r&&r.mem)||{});
 const isMem=r=>!!(r&&r.mem&&NET.uid&&r.mem[NET.uid]);
 const raidPath=()=>`plaza/${NET.ch}/raid`;
+// 접속해 있는 참가자: 나 자신이거나, 하트비트가 STALE 안쪽인 사람
+const memAlive=(u,now)=>u===NET.uid||!!(NET.players[u]&&now-NET.players[u].t<STALE);
+const liveMem=r=>{const now=NET.be.now();return rMem(r).filter(u=>memAlive(u,now))};
 function driverUid(r){
-  const now=NET.be.now();
-  const ok=rMem(r).filter(u=>u===NET.uid||(NET.players[u]&&now-NET.players[u].t<STALE)).sort();
-  return ok[0]||null;
+  return liveMem(r).sort()[0]||null;
 }
 const amDriver=r=>driverUid(r)===NET.uid;
 // ----- 화학 계산 -----
@@ -1908,7 +1913,8 @@ function p1State(r){
 const tbPure=P=>1/(1/373.15-8.314*Math.log(P)/40700)-273.15;   // 클라우지우스–클라페롱, ΔHvap = 40.7 kJ/mol
 const tPeak=N=>Math.min(125,102+5*N);
 function p2State(r,e){
-  const N=r.N||1,v=r.p2||{};let s=0;for(const k in v)s+=v[k]|0;
+  // 접속이 끊긴 사람의 밸브는 합산에서 뺀다(나간 사람의 압력이 영구히 남지 않도록)
+  const N=r.N||1,v=r.p2||{},nowS=NET.be.now();let s=0;for(const k in v)if(memAlive(k,nowS))s+=v[k]|0;
   const Pext=1+.1*s,dTb=.512*p1State(r).m,Tb=tbPure(Pext)+dTb;
   const T=100+(tPeak(N)-100)*clamp((e-P2_GRACE)/P2_RISE,0,1);
   return{Pext,Tb,dTb,T,s};
@@ -1930,12 +1936,19 @@ function raidOpen(){
   const now=NET.be.now();
   NET.be.set(raidPath(),{seq:now,st:"lobby",t0:now,mem:{[NET.uid]:{n:S.flags.nick||"손님"}}});
 }
-function raidJoin(){const r=NET.raid;if(!r||r.st!=="lobby"||rMem(r).length>=RAID_MAX)return;NET.be.set(`${raidPath()}/mem/${NET.uid}`,{n:S.flags.nick||"손님"})}
+function raidJoin(){const r=NET.raid;if(!r||r.st!=="lobby"||liveMem(r).length>=RAID_MAX)return;NET.be.set(`${raidPath()}/mem/${NET.uid}`,{n:S.flags.nick||"손님"})}
 function raidLeave(){
   const r=NET.raid;if(!r)return;
-  if(rMem(r).filter(u=>u!==NET.uid).length===0)NET.be.remove(raidPath());else NET.be.remove(`${raidPath()}/mem/${NET.uid}`);
+  // 나 말고 접속해 있는 참가자가 없으면 레이드를 통째로 정리한다(끊긴 사람만 남은 레이드를 만들지 않는다)
+  if(liveMem(r).filter(u=>u!==NET.uid).length===0)NET.be.remove(raidPath());else NET.be.remove(`${raidPath()}/mem/${NET.uid}`);
 }
-function raidStart(){const r=NET.raid;if(!r||r.st!=="lobby"||!isMem(r))return;raidWrite({st:"p1",t0:NET.be.now(),N:rMem(r).length})}
+// 시작할 때 인원 N 은 접속해 있는 참가자만 센다. 끊긴 참가자는 참가자 목록에서 뺀다(목표와 보상이 부풀려지지 않게).
+function raidStart(){
+  const r=NET.raid;if(!r||r.st!=="lobby"||!isMem(r))return;
+  const live=liveMem(r);
+  raidWrite({st:"p1",t0:NET.be.now(),N:Math.max(1,live.length)});
+  for(const u of rMem(r))if(!live.includes(u))NET.be.remove(`${raidPath()}/mem/${u}`);
+}
 function raidLose(why){const r=NET.raid;if(!r||r.st==="won"||r.st==="lost")return;raidWrite({st:"lost",t0:NET.be.now(),why})}
 function raidStartP3(r){
   const N=r.N||1,need=need3(N),deck=[];
@@ -1946,23 +1959,67 @@ function raidStartP3(r){
   shuffle(deck).forEach((g_,i)=>sup[ok[i%ok.length]][g_]++);
   raidWrite({st:"p3",t0:now,p3:{need,sup,use:null}});
 }
+// 접속해 있는 참가자가 없어 아무도 판정하지 못하는 레이드를 정리하고, 모집 중에 오래 끊긴 참가자를 뺀다.
+// 플레이어 목록이 아직 도착하기 전에는(모두 끊긴 것처럼 보일 수 있으므로) 아무것도 지우지 않는다.
+function raidCleanup(r,live,step){
+  if(!NET.playersReady){RD.dead=0;return}
+  if(live.length===0){
+    RD.dead+=step;
+    if(RD.dead>=RD.deadAfter&&NET.raid&&NET.raid.seq===r.seq){RD.dead=0;NET.be.remove(raidPath())}
+  }else RD.dead=0;
+  if(r.st==="lobby"&&isMem(r)){
+    for(const u of rMem(r)){
+      if(live.includes(u)){delete RD.ghost[u];continue}
+      RD.ghost[u]=(RD.ghost[u]||0)+step;
+      if(RD.ghost[u]>=RD.ghostAfter){delete RD.ghost[u];NET.be.remove(`${raidPath()}/mem/${u}`)}
+    }
+  }
+}
+// 3단계 중에 캡슐을 가진 참가자가 끊기면 남은 캡슐을 접속해 있는 참가자에게 돌려 가며 넘긴다(판정자만 쓴다).
+function raidP3Rebalance(r,live){
+  if(!r.p3||!r.p3.sup||!live.length)return;
+  const sup=r.p3.sup,use=r.p3.use||{},G=["n2","o2","he"],add={};
+  for(const u in sup){
+    if(live.includes(u))continue;
+    const left={};let tot=0;
+    for(const k of G){left[k]=Math.max(0,(sup[u][k]|0)-((use[u]&&use[u][k])|0));tot+=left[k]}
+    if(tot<=0)continue;
+    for(const k of G)for(let i=0;i<left[k];i++){const to=live[RD.rr++%live.length];(add[to]=add[to]||{n2:0,o2:0,he:0})[k]++}
+    add[u]=add[u]||{n2:0,o2:0,he:0};add[u].takeBack=left;   // 끊긴 사람의 보유량은 이미 쓴 만큼으로 줄인다
+  }
+  for(const to in add){
+    const cur=sup[to]||{n2:0,o2:0,he:0},nx={};
+    if(add[to].takeBack){for(const k of G)nx[k]=(cur[k]|0)-add[to].takeBack[k]}
+    else for(const k of G)nx[k]=(cur[k]|0)+add[to][k];
+    NET.be.set(`${raidPath()}/p3/sup/${to}`,nx);
+  }
+}
 // ----- 매 프레임 판정 -----
 function raidTick(dt){
-  RD.acc+=dt;if(RD.acc<.25)return;RD.acc=0;
+  RD.acc+=dt;if(RD.acc<.25)return;const step=RD.acc;RD.acc=0;
   const r=NET.raid;
-  if(!r){RD.last="";return}
-  const now=NET.be.now(),e=(now-r.t0)/1000,key=r.seq+":"+r.st;
+  if(!r){RD.last="";RD.dead=0;return}
+  const now=NET.be.now(),e=(now-r.t0)/1000,key=r.seq+":"+r.st,live=liveMem(r);
   // 모집 중인 레이드에 남은 내 이전 접속(새로고침 전 탭) 참가자를 정리한다.
   if(r.st==="lobby"){
     const old=rMem(r).filter(u=>u!==NET.uid&&(u===NET.auth||u.startsWith(NET.auth+"_"))&&!(NET.players[u]&&now-NET.players[u].t<STALE));
     if(old.length){if(old.length===rMem(r).length)NET.be.remove(raidPath());else old.forEach(u=>NET.be.remove(`${raidPath()}/mem/${u}`))}
   }
-  if(key!==RD.last){RD.last=key;RD.meter=0;raidOnState(r)}
-  if(r.st==="p2"){const s=p2State(r,e);RD.meter=clamp(RD.meter+(s.T>s.Tb?.25:-.25),0,6)}
+  raidCleanup(r,live,step);
+  if(key!==RD.last){RD.last=key;RD.meter=0;RD.drv=false;raidOnState(r)}
+  // 과열 누적: 판정자가 계산해 서버(hot)에 적어 두고, 나머지는 그 값을 읽는다. 판정자가 바뀌어도 거기서 이어 간다.
+  if(r.st==="p2"){
+    const s=p2State(r,e),hot=s.T>s.Tb;
+    if(amDriver(r)){
+      if(!RD.drv){RD.drv=true;RD.meter=Math.max(RD.meter,r.hot||0)}
+      RD.meter=clamp(RD.meter+(hot?step:-step),0,6);
+      if(Math.abs((r.hot||0)-RD.meter)>=.4)raidWrite({hot:+RD.meter.toFixed(2)});
+    }else{RD.drv=false;RD.meter=r.hot||0}
+  }
   if(curWin&&curWin.raid&&RD.liveFn)RD.liveFn();
   if(!amDriver(r))return;
   if(r.st==="p1"){
-    if(p1State(r).P<=GOAL_P+1e-9)raidWrite({st:"p2",t0:now});
+    if(p1State(r).P<=GOAL_P+1e-9)raidWrite({st:"p2",t0:now,hot:0});
     else if(e>P1_TIME)raidLose("제한 시간 안에 증기 압력을 목표까지 낮추지 못했어요.");
   }else if(r.st==="p2"){
     const s=p2State(r,e);
@@ -1970,6 +2027,7 @@ function raidTick(dt){
     else if(RD.meter>=6)raidLose("솥 온도가 끓는점을 넘은 채로 너무 오래 있어서 끓어 넘쳤어요!");
     else if(e>=P2_TIME)raidStartP3(r);
   }else if(r.st==="p3"&&r.p3&&r.p3.need){
+    raidP3Rebalance(r,live);
     const u=use3(r),n=r.p3.need;
     if(u.n2>n.n2||u.o2>n.o2||u.he>n.he)raidLose("목표 분압을 넘겨서 용기가 과압으로 터졌어요!");
     else if(u.n2===n.n2&&u.o2===n.o2&&u.he===n.he)raidWrite({st:"won",t0:now,why:"세 기체의 분압이 목표와 정확히 맞았어요!"});
@@ -1979,7 +2037,7 @@ function raidTick(dt){
 }
 function netRaid(v){
   NET.raid=v||null;
-  const r=NET.raid,sig=r?r.seq+":"+r.st+":"+rMem(r).join(","):"none";
+  const r=NET.raid,sig=r?r.seq+":"+r.st+":"+rMem(r).join(",")+":"+(r.p3&&r.p3.sup?JSON.stringify(r.p3.sup):""):"none";   // 캡슐 분배가 바뀌면 창도 다시 만든다
   if(sig!==RD.sig){RD.sig=sig;if(curWin&&curWin.raid)refreshWin()}
   else if(curWin&&curWin.raid&&RD.liveFn)RD.liveFn();
   updatePlazaHud();
@@ -1992,7 +2050,8 @@ function raidOnState(r){
   }else if(r.st==="won"||r.st==="lost"){
     if(RD.done!==r.seq){
       RD.done=r.seq;
-      if(r.st==="won"){const c=60+20*(r.N||1);S.coins+=c;S.flags.raidWins=(S.flags.raidWins||0)+1;toast(`🎉 레이드 클리어! 🪙 ${c} 코인을 받았어요.`,5000)}
+      // 보상은 레이드(seq)마다 한 번만: 마지막으로 받은 seq 를 저장 데이터에 남겨 새로고침·재입장에서도 중복 지급을 막는다.
+      if(r.st==="won"&&S.flags.raidSeq!==r.seq){S.flags.raidSeq=r.seq;const c=60+20*(r.N||1);S.coins+=c;S.flags.raidWins=(S.flags.raidWins||0)+1;toast(`🎉 레이드 클리어! 🪙 ${c} 코인을 받았어요.`,5000);save()}
     }
     if(!dl&&(!curWin||curWin.raid)){if(curWin)refreshWin();else winRaid()}
   }
@@ -2080,7 +2139,7 @@ function raidBuild(b){
       live.push(()=>{const v=(NET.raid.p2&&NET.raid.p2[NET.uid])|0;valve.textContent=`${v}칸 (+${(v*.1).toFixed(1)} atm)`});
     }
     const mv=el("div","note");b.append(mv);
-    live.push(()=>{const R_=NET.raid;mv.innerHTML="밸브 현황: "+rMem(R_).map(u=>`${R_.mem[u].n} ${(R_.p2&&R_.p2[u])|0}칸`).join(" · ")});
+    live.push(()=>{const R_=NET.raid,nw=NET.be.now();mv.innerHTML="밸브 현황: "+rMem(R_).map(u=>`${R_.mem[u].n} ${(R_.p2&&R_.p2[u])|0}칸${memAlive(u,nw)?"":" (연결 끊김·제외)"}`).join(" · ")});
   }else if(r.st==="p3"&&r.p3&&r.p3.need){
     head.textContent="③ 가스 과압 — 분압을 맞춰라";
     const need=r.p3.need;
