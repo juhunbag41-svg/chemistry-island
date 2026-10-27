@@ -969,7 +969,7 @@ function say(who,text){return new Promise(res=>{dl={who,text,opts:null,sel:0,sho
 function ask(who,text,opts){return new Promise(res=>{dl={who,text,opts,sel:0,shown:0,res};showDlg()})}
 function showDlg(){$("dlg").style.display="block";$("dwho").style.display=dl.who?"block":"none";$("dwho").textContent=dl.who;$("dtxt").textContent="";$("dopts").innerHTML="";$("dnext").style.display="none"}
 function dlgFinish(){if(!dl)return;dl.shown=dl.text.length;$("dtxt").textContent=dl.text;
-  if(dl.opts){const o=$("dopts");o.innerHTML="";dl.opts.forEach((t,i)=>{const d=el("div","opt"+(i===dl.sel?" sel":""),`${i+1}. ${t}`);d.onclick=()=>chooseOpt(i);d.onmouseenter=()=>{if(!dl||dl.sel===i)return;dl.sel=i;[...o.children].forEach((c,j)=>c.classList.toggle("sel",j===i))};o.append(d)})}
+  if(dl.opts){const o=$("dopts");o.innerHTML="";dl.opts.forEach((t,i)=>{const d=el("div","opt"+(i===dl.sel?" sel":""),`${i+1}. ${t}`);d.onclick=()=>chooseOpt(i);d.onmousemove=()=>{if(!dl||dl.sel===i)return;dl.sel=i;[...o.children].forEach((c,j)=>c.classList.toggle("sel",j===i))};o.append(d)})}
   else $("dnext").style.display="block"}
 function chooseOpt(i){if(!dl||!dl.opts||dl.shown<dl.text.length)return;const r=dl.res;dl=null;$("dlg").style.display="none";r(i)}
 function dlgKey(code){
@@ -977,8 +977,10 @@ function dlgKey(code){
   const act=code==="KeyE"||code==="Space"||code==="Enter";
   if(dl.shown<dl.text.length){if(act)dlgFinish();return}
   if(dl.opts){
-    if(code==="ArrowUp"||code==="KeyW"){dl.sel=(dl.sel+dl.opts.length-1)%dl.opts.length;dlgFinish()}
-    else if(code==="ArrowDown"||code==="KeyS"){dl.sel=(dl.sel+1)%dl.opts.length;dlgFinish()}
+    // 선택지를 다시 만들면 마우스 아래 항목의 mouseenter가 선택을 되돌리므로 클래스만 바꾼다
+    const mv=d=>{dl.sel=(dl.sel+d+dl.opts.length)%dl.opts.length;[...$("dopts").children].forEach((c,j)=>c.classList.toggle("sel",j===dl.sel))};
+    if(code==="ArrowUp"||code==="KeyW")mv(-1);
+    else if(code==="ArrowDown"||code==="KeyS")mv(1);
     else if(code.startsWith("Digit")&&+code.slice(5)>=1&&+code.slice(5)<=dl.opts.length)chooseOpt(+code.slice(5)-1);
     else if(act)chooseOpt(dl.sel);
   }else if(act){const r=dl.res;dl=null;$("dlg").style.display="none";r()}
