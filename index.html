@@ -2029,6 +2029,18 @@ function plazaRaidFx(){
     g.fillStyle=`rgba(${c},${(f*f*.35).toFixed(3)})`;g.fillRect(0,0,VW,VH);
   }
 }
+// ----- 클리어 기록과 반복 보상 (저장 데이터에는 새 플래그 raidDay·raidToday·raidBest 만 추가한다) -----
+// 기본 보상: 60+20×N 코인. 처음 클리어하면 +100 코인. 같은 날 반복하면 1번째 100% → 2번째 60% → 3번째 30% → 4번째부터 10%.
+// 기록: 인원(N)별 최단 클리어 시간. 날짜는 서버 시각을 내 시간대의 달력 날짜로 바꿔 센다.
+const RAID_DAILY=[1,.6,.3,.1],RAID_FIRST_BONUS=100;
+const raidDayKey=()=>{const d=new Date(NET.be?NET.be.now():Date.now());return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const raidTodayCount=()=>S.flags.raidDay===raidDayKey()?(S.flags.raidToday|0):0;
+const raidMult=k=>RAID_DAILY[Math.min(k,RAID_DAILY.length-1)];
+const fmtSecs=s=>{s=Math.round(s);const m=Math.floor(s/60);return m?`${m}분 ${s%60}초`:`${s}초`};
+function raidRecordHtml(){
+  const best=S.flags.raidBest||{},keys=Object.keys(best).sort((a,b)=>(+a.slice(1))-(+b.slice(1))),k=raidTodayCount();
+  return`📊 <b>내 기록</b>: 지금까지 ${S.flags.raidWins|0}번 클리어${keys.length?`<br>🏆 최단 기록 — `+keys.map(x=>`${x.slice(1)}명 ${fmtSecs(best[x])}`).join(" · "):""}<br>🪙 오늘 ${k}번 클리어 → 다음 보상 <b>${Math.round(raidMult(k)*100)}%</b>${(S.flags.raidWins|0)===0?` · 첫 클리어 보너스 +${RAID_FIRST_BONUS}`:""}`;
+}
 const RAID_BANNER={p1:"🍲 1단계 — 증기 방어막! 용질로 증기 압력을 낮춰요",p2:"🌡️ 2단계 — 열원이 뜨거워져요! 압력 밸브와 냉각 펌프를 함께 써요",p3:"⚗️ 3단계 — 가스가 차올라요! 제안을 맞추고 함께 넣어요",won:"✨ 솥의 정령이 진정됐어요!",lost:"💥 솥이 불안정해졌어요…"};
 function raidLabel(){
   const r=NET.raid;
@@ -2053,7 +2065,8 @@ function raidLeave(){
 function raidStart(){
   const r=NET.raid;if(!r||r.st!=="lobby"||!isMem(r))return;
   const live=liveMem(r);
-  raidWrite({st:"p1",t0:NET.be.now(),N:Math.max(1,live.length)});
+  const t=NET.be.now();
+  raidWrite({st:"p1",t0:t,N:Math.max(1,live.length),start:t});   // start: 도전을 시작한 시각(클리어 기록용)
   for(const u of rMem(r))if(!live.includes(u))NET.be.remove(`${raidPath()}/mem/${u}`);
 }
 function raidLose(why){const r=NET.raid;if(!r||r.st==="won"||r.st==="lost")return;raidWrite({st:"lost",t0:NET.be.now(),why})}
@@ -2189,7 +2202,16 @@ function raidOnState(r){
     if(RD.done!==r.seq){
       RD.done=r.seq;
       // 보상은 레이드(seq)마다 한 번만: 마지막으로 받은 seq 를 저장 데이터에 남겨 새로고침·재입장에서도 중복 지급을 막는다.
-      if(r.st==="won"&&S.flags.raidSeq!==r.seq){S.flags.raidSeq=r.seq;const c=60+20*(r.N||1);S.coins+=c;S.flags.raidWins=(S.flags.raidWins||0)+1;toast(`🎉 레이드 클리어! 🪙 ${c} 코인을 받았어요.`,5000);save()}
+      if(r.st==="won"&&S.flags.raidSeq!==r.seq){
+        S.flags.raidSeq=r.seq;
+        const N=r.N||1,base=60+20*N,first=(S.flags.raidWins|0)===0?RAID_FIRST_BONUS:0,k=raidTodayCount(),mult=raidMult(k),gain=Math.round(base*mult)+first;
+        const secs=r.start?Math.max(1,Math.round((r.t0-r.start)/1000)):0,key="n"+N,best=S.flags.raidBest||{},prev=best[key]||0,newBest=secs>0&&(!prev||secs<prev);
+        S.coins+=gain;S.flags.raidWins=(S.flags.raidWins|0)+1;S.flags.raidDay=raidDayKey();S.flags.raidToday=k+1;
+        if(newBest)S.flags.raidBest=Object.assign({},best,{[key]:secs});
+        RD.reward={seq:r.seq,gain,base,first,mult,k:k+1,secs,newBest,prev};
+        toast(`🎉 레이드 클리어! 🪙 ${gain} 코인${first?` (첫 클리어 +${first})`:""}${mult<1?` · 오늘 ${k+1}번째라 ${Math.round(mult*100)}%`:""}${secs?`\n⏱ ${fmtSecs(secs)}${newBest?" 🏆 새 기록!":""}`:""}`,6000);
+        save();
+      }
     }
     if(!dl&&(!curWin||curWin.raid)){if(curWin)refreshWin();else winRaid()}
   }
@@ -2211,7 +2233,7 @@ function raidBuild(b){
   if(!NET.ok){b.append(el("div","empty","광장에 연결 중이에요…"));return}
   if(!r){
     b.append(el("div","note","솥 골렘이 끓어 넘치기 직전이에요! 힘을 합쳐 세 단계를 넘기면 진정시킬 수 있어요.<br>① <b>증기 방어막</b> — 용질을 넣어 증기 압력을 낮추기<br>② <b>과열 제어</b> — 압력 밸브로 끓는점을 조절하고 냉각 펌프로 열원을 식혀 끓어 넘침 막기 (두 장치를 함께 쓰면 더 빨리 안정화!)<br>③ <b>가스 과압</b> — 목표 분압에 맞게 기체를 섞기<br>혼자서도 할 수 있지만 3명 이상이면 더 재미있어요. (최대 8명)"));
-    const bt=el("button","btn","레이드 모집 시작");bt.onclick=()=>raidOpen();b.append(bt);return;
+    const bt=el("button","btn","레이드 모집 시작");bt.onclick=()=>raidOpen();b.append(bt,el("div","note",raidRecordHtml()));return;
   }
   if(r.st==="lobby"){
     b.append(el("div","sub",`🙋 참가자 ${rMem(r).length}/${RAID_MAX}명`),el("div","note",memList(r)||"-"));
@@ -2221,7 +2243,7 @@ function raidBuild(b){
       const st=el("button","btn on",`시작하기 (${rMem(r).length}명)`);st.onclick=()=>raidStart();
       const lv=el("button","btn","나가기");lv.onclick=()=>raidLeave();row.append(st,lv);
     }
-    b.append(row,el("div","note","💡 시작하면 참가자 수에 맞춰 솥의 크기와 목표가 정해져요. 광장의 🎁 재료 상자에서 설탕·소금 키트를 받아 두세요."));
+    b.append(row,el("div","note","💡 시작하면 참가자 수에 맞춰 솥의 크기와 목표가 정해져요. 광장의 🎁 재료 상자에서 설탕·소금 키트를 받아 두세요."),el("div","note",raidRecordHtml()));
     return;
   }
   const head=el("div","sub","");b.append(head);
@@ -2230,7 +2252,13 @@ function raidBuild(b){
   if(r.st==="won"||r.st==="lost"){
     head.textContent=r.st==="won"?"🎉 레이드 클리어!":"💥 레이드 실패";
     b.append(el("div","note",r.why||""));
-    if(r.st==="won")b.append(el("div","note",`참가자: ${memList(r)}<br>보상: 🪙 ${60+20*(r.N||1)} 코인 (참가자 전원)`));
+    if(r.st==="won"){
+      const w=RD.reward&&RD.reward.seq===r.seq?RD.reward:null;
+      b.append(el("div","note",`참가자: ${memList(r)}`+(w
+        ?`<br>🪙 보상 <b>${w.gain}</b> 코인 = 기본 ${w.base} × ${Math.round(w.mult*100)}%${w.first?` + 첫 클리어 ${w.first}`:""} (오늘 ${w.k}번째)${w.secs?`<br>⏱ 이번 기록 ${fmtSecs(w.secs)}${w.newBest?` 🏆 <b>새 기록!</b>${w.prev?` (이전 ${fmtSecs(w.prev)})`:""}`:w.prev?` · 최단 ${fmtSecs(w.prev)}`:""}`:""}`
+        :`<br>보상은 참가자에게만 지급돼요(기본 🪙 ${60+20*(r.N||1)}, 같은 날 반복하면 줄어요).`)));
+      if(w)b.append(el("div","note",raidRecordHtml()));
+    }
     else b.append(el("div","note","원인을 되짚어 보고 다시 도전해 봐요. 몇 초 뒤 솥이 식으면 새 레이드를 모집할 수 있어요."));
     return;
   }
