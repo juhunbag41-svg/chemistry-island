@@ -1662,7 +1662,7 @@ function netLeave(){
   try{if(NET.ok&&NET.raid&&NET.raid.st==="lobby"&&isMem(NET.raid))raidLeave()}catch(e){}
   NET.tok++;NET.connecting=false;NET.pending=null;for(const u of NET.subs){try{u()}catch(e){}}NET.subs=[];
   if(NET.ok&&NET.be&&NET.path){try{NET.be.remove(NET.path)}catch(e){}}
-  NET.ok=false;NET.kicked=false;NET.playersReady=false;NET.players={};NET.remote={};NET.raid=null;NET.count=0;PLZ.myEmo=null;RD.liveFn=null;RD.last="";RD.dead=0;RD.ghost={};RD.drv=false;RD.danger=0;RD.flash=0;
+  NET.ok=false;NET.kicked=false;NET.playersReady=false;NET.players={};NET.remote={};NET.raid=null;NET.count=0;PLZ.myEmo=null;RD.liveFn=null;RD.last="";RD.dead=0;RD.ghost={};RD.drv=false;RD.danger=0;RD.flash=0;RD.lastT=0;
 }
 // 같은 계정(UID)의 접속인가? (내 것 포함, 예전 방식의 UID 그대로인 키도 포함)
 const isMine=k=>!!NET.auth&&(k===NET.auth||k.startsWith(NET.auth+"_"));
@@ -1810,7 +1810,8 @@ function updatePlazaHud(){
   const e=(NET.be.now()-r.t0)/1000,lim={p1:P1_TIME,p2:P2_TIME,p3:P3_TIME}[r.st];
   const nm={lobby:"모집 중",p1:"1단계 증기 방어막",p2:"2단계 과열 제어",p3:"3단계 가스 과압",won:"클리어!",lost:"실패"}[r.st]||"";
   const dd=RD.danger,act=r.st==="p1"||r.st==="p2"||r.st==="p3",warn=act&&dd>.6;
-  rh.style.display="block";rh.textContent=`${warn?"⚠ ":"🍲 "}레이드 ${nm}${lim?` · ${Math.max(0,Math.ceil(lim-e))}초`:""}${act?` · 불안정 ${Math.round(dd*100)}%`:""}${isMem(r)?"":" (관전)"}`;
+  const left=r.st==="p2"?P2_TIME-RD.stab:lim?lim-e:0;   // 2단계는 안정화 진행도 기준으로 남은 시간
+  rh.style.display="block";rh.textContent=`${warn?"⚠ ":"🍲 "}레이드 ${nm}${lim?` · ${Math.max(0,Math.ceil(left))}초`:""}${act?` · 불안정 ${Math.round(dd*100)}%`:""}${isMem(r)?"":" (관전)"}`;
   rh.style.borderColor=act?(dd>.6?"#c0392b":dd>.35?"#d6892a":"#9b6b43"):"";rh.style.background=warn?"rgba(255,228,222,.96)":"";   // 위험할수록 알약의 테두리·바탕이 붉어진다
 }
 // 공동 광장 시각: 서버 시각(be.now())에서 계산한다. 저장·전송하는 값이 없고 늦게 들어와도 같은 값이 나온다.
@@ -1860,7 +1861,9 @@ function drawPlzObj(o){
     const sh=act?Math.round(Math.sin(t*28)*(.5+2.4*d)*rs):0;
     const eyeBase={idle:"#ffd84a",lobby:"#ffd84a",p1:"#6fd0ea",p2:"#ff6a4a",p3:"#b58cff",won:"#6bc16b",lost:"#555a66"}[st]||"#ffd84a";
     const eye=act&&d>.7&&Math.floor(t*(REDUCE?1:4))%2?"#ff4a3a":eyeBase;   // 위험하면 눈이 붉게 깜빡인다
-    const[sr,sg,sb]=steamRGB(d);
+    const dv=st==="p2"&&NET.raid&&NET.ok?p2Devices(NET.raid):null;   // 2단계 장치(냉각 펌프·압력 밸브) 상태
+    let[sr,sg,sb]=steamRGB(d);
+    if(dv&&dv.pumps){sr=Math.round(sr*.55+140*.45);sg=Math.round(sg*.55+215*.45);sb=Math.round(sb*.55+255*.45)}   // 냉각 펌프가 돌면 증기가 푸르게 식는다
     if(act&&d>.45){   // 바닥의 위험 구역 표시: 점선 고리가 위험할수록 진해지고 천천히 돈다
       const al=(.25+.45*(d-.45)/.55).toFixed(2),ph=REDUCE?0:Math.floor(t*4);
       for(let i=0;i<44;i++){if((i+ph)%3)continue;const a=i/44*6.283;R(x+32+Math.cos(a)*(46+(REDUCE?0:Math.sin(t*3)*2)),y+44+Math.sin(a)*11,2,1,`rgba(255,70,50,${al})`)}
@@ -1885,6 +1888,9 @@ function drawPlzObj(o){
     if(st==="won"){R(x+22+sh,y+31,20,2,"#2a2a34");R(x+20+sh,y+30,2,2,"#2a2a34");R(x+42+sh,y+30,2,2,"#2a2a34")}
     else if(st==="lost"){R(x+22+sh,y+31,20,2,"#2a2a34");R(x+20+sh,y+33,2,2,"#2a2a34");R(x+42+sh,y+33,2,2,"#2a2a34")}
     else{R(x+22+sh,y+31,20,3,"#2a2a34");for(let i=0;i<4;i++)R(x+24+i*4+sh,y+31,2,2,"#f0f0f0")}
+    // 냉각 펌프: 서리 조각이 솥 아래에 맺히고, 압력 밸브와 함께 쓰면(동조·팀워크) 초록빛이 반짝인다
+    if(dv&&dv.pumps)for(let i=0;i<6;i++)R(x+8+i*9+Math.round(Math.sin(t*2+i)),y+38+(i%2)*3,2,2,"rgba(170,230,255,.85)");
+    if(dv&&dv.syn)for(let i=0;i<(dv.team?8:4);i++){const p=(t*.9+i/8)%1;R(x+6+(i*7)%52,y+10-Math.round(p*16),2,2,`rgba(110,240,190,${(.9*(1-p)).toFixed(2)})`)}
     // 경고등(뚜껑 위)
     if(act&&d>.5)R(x+30+sh,y-4,4,3,Math.floor(t*(REDUCE?1:2+2*d))%2?"#ff4a3a":"#5a1a14");
     // 증기: 위험해질수록 많고 빠르고 높이 올라가며 색이 흰색→노랑→주황→붉은색으로 바뀐다(모바일은 입자를 줄인다)
@@ -1923,7 +1929,8 @@ const P1_TIME=150,P2_TIME=45,P2_RISE=40,P2_GRACE=3,P3_TIME=150,CAP1=8,VMAX=5,PBU
 // dead: 살아 있는 참가자가 없는 채로 흐른 시간(초), ghost: 참가자별로 끊긴 채 흐른 시간, drv: 내가 판정자로 일하는 중인지
 // deadAfter/ghostAfter 는 시험할 때 줄여 쓸 수 있도록 값으로 둔다.
 // danger: 연출용 위험도(0~1, 부드럽게 따라감), flash: 단계 전환 섬광의 남은 시간(초), flashSt: 전환된 단계
-const RD={acc:0,sig:"",last:"",meter:0,done:0,liveFn:null,add:{u:0,a:0},v3:{n2:0,o2:0,he:0},dead:0,ghost:{},drv:false,deadAfter:60,ghostAfter:30,rr:0,danger:0,flash:0,flashSt:""};
+// stab: 2단계 '안정화 진행도'(초): 판정자가 계산해 서버(stab)에 적어 두고 판정자가 바뀌어도 이어진다. msgT: 3단계 안내 문구를 마지막으로 본 시각.
+const RD={acc:0,sig:"",last:"",meter:0,done:0,liveFn:null,add:{u:0,a:0},v3:{n2:0,o2:0,he:0},dead:0,ghost:{},drv:false,deadAfter:60,ghostAfter:30,rr:0,danger:0,flash:0,flashSt:"",stab:0,msgT:0};
 const GOAL_P=P0*(1-GOAL_X);
 const rMem=r=>Object.keys((r&&r.mem)||{});
 const isMem=r=>!!(r&&r.mem&&NET.uid&&r.mem[NET.uid]);
@@ -1944,16 +1951,42 @@ function p1State(r){
 }
 const tbPure=P=>1/(1/373.15-8.314*Math.log(P)/40700)-273.15;   // 클라우지우스–클라페롱, ΔHvap = 40.7 kJ/mol
 const tPeak=N=>Math.min(125,102+5*N);
+// ----- 2단계 장치: 압력 밸브(각자 0~5칸)와 냉각 펌프(각자, 8초 가동 후 6초 재충전) -----
+// 냉각 펌프는 열원 온도만 낮춘다(끓는점 자체는 바꾸지 않는다). 가동 시작 시각(서버 시각)만 기록하고, 가동·재충전은 시각에서 계산한다.
+// 압력 밸브와 냉각 펌프가 동시에 가동 중이면 '안정화'가 빨라진다(동조 ×1.5). 서로 다른 사람이 쓰면 더 빨라진다(팀워크 ×2). 혼자서도 두 장치를 함께 쓸 수 있다.
+const PUMP_ON=8000,PUMP_CYCLE=14000,PUMP_COOL=3,SYN_MULT=1.5,TEAM_MULT=2;
+function pumpState(r,u,now){
+  const t0=r.p2c&&r.p2c[u];if(typeof t0!=="number")return{on:false,ready:true,left:0,wait:0};
+  const d=now-t0;
+  if(d<0)return{on:true,ready:false,left:PUMP_ON/1000,wait:0};
+  if(d<PUMP_ON)return{on:true,ready:false,left:(PUMP_ON-d)/1000,wait:0};
+  if(d<PUMP_CYCLE)return{on:false,ready:false,left:0,wait:(PUMP_CYCLE-d)/1000};
+  return{on:false,ready:true,left:0,wait:0};
+}
+function p2Devices(r){
+  const now=NET.be.now(),v=r.p2||{},vIds=[],pIds=[];
+  for(const u of rMem(r)){if(!memAlive(u,now))continue;if((v[u]|0)>0)vIds.push(u);if(pumpState(r,u,now).on)pIds.push(u)}
+  const syn=vIds.length>0&&pIds.length>0,team=syn&&vIds.some(a=>pIds.some(b=>a!==b));
+  return{valves:vIds.length,pumps:pIds.length,syn,team,mult:team?TEAM_MULT:syn?SYN_MULT:1};
+}
 function p2State(r,e){
   // 접속이 끊긴 사람의 밸브는 합산에서 뺀다(나간 사람의 압력이 영구히 남지 않도록)
   const N=r.N||1,v=r.p2||{},nowS=NET.be.now();let s=0;for(const k in v)if(memAlive(k,nowS))s+=v[k]|0;
+  const dv=p2Devices(r);
   const Pext=1+.1*s,dTb=.512*p1State(r).m,Tb=tbPure(Pext)+dTb;
-  const T=100+(tPeak(N)-100)*clamp((e-P2_GRACE)/P2_RISE,0,1);
-  return{Pext,Tb,dTb,T,s};
+  const T=Math.max(100,100+(tPeak(N)-100)*clamp((e-P2_GRACE)/P2_RISE,0,1)-PUMP_COOL*dv.pumps);
+  return{Pext,Tb,dTb,T,s,pumps:dv.pumps,mult:dv.mult,syn:dv.syn,team:dv.team};
 }
 const need3=N=>({n2:Math.max(2,Math.ceil(N*.8)),o2:Math.max(1,Math.ceil(N*.4)),he:Math.max(1,Math.floor(N*.4))});
 function use3(r){const t={n2:0,o2:0,he:0},o=(r.p3&&r.p3.use)||{};for(const k in o)for(const g_ in t)t[g_]+=o[k][g_]|0;return t}
 const GAS=[["n2","질소 N₂","#4a7ee0"],["o2","산소 O₂","#e85a5a"],["he","헬륨 He","#e8b830"]];
+// ----- 3단계: 넣기 제안과 함께 넣기(확정) -----
+// 각자 '제안'(넣을 캡슐 수)만 적고, 누가 '함께 넣기'를 누르면 판정자가 모든 제안을 한꺼번에 넣는다.
+// 확정을 누른 순간의 제안 지문(sig)과 판정 순간의 지문이 다르면(그 사이 누가 제안을 바꿈) 넣지 않고 취소한다 → 동시에 눌러 뜻밖에 넘기는 일이 없다.
+const G3=["n2","o2","he"];
+function p3Props(r){const o={},pr=(r.p3&&r.p3.prop)||{};for(const u in pr){const p=pr[u]||{};o[u]={n2:p.n2|0,o2:p.o2|0,he:p.he|0}}return o}
+function p3Sig(r){const p=p3Props(r);return Object.keys(p).sort().map(k=>`${k}:${p[k].n2},${p[k].o2},${p[k].he}`).join("|")}
+function p3Totals(r){const u=use3(r),p=p3Props(r),proj={n2:u.n2,o2:u.o2,he:u.he};for(const k in p)for(const g_ of G3)proj[g_]+=p[k][g_];return{use:u,proj}}
 
 // ----- 연출 전용: 위험도·증기 색·경고 효과 (게임 판정과 서버 데이터는 읽기만 한다) -----
 // 위험도는 이미 계산해 두는 값(증기 압력, 과열 누적, 외부 압력, 남은 시간)에서 정한다. 모든 참가자·구경꾼이 같은 값을 본다.
@@ -1996,7 +2029,7 @@ function plazaRaidFx(){
     g.fillStyle=`rgba(${c},${(f*f*.35).toFixed(3)})`;g.fillRect(0,0,VW,VH);
   }
 }
-const RAID_BANNER={p1:"🍲 1단계 — 증기 방어막! 용질로 증기 압력을 낮춰요",p2:"🌡️ 2단계 — 열원이 뜨거워져요! 압력 밸브로 끓는점을 조절해요",p3:"⚗️ 3단계 — 가스가 차올라요! 분압을 맞춰요",won:"✨ 솥의 정령이 진정됐어요!",lost:"💥 솥이 불안정해졌어요…"};
+const RAID_BANNER={p1:"🍲 1단계 — 증기 방어막! 용질로 증기 압력을 낮춰요",p2:"🌡️ 2단계 — 열원이 뜨거워져요! 압력 밸브와 냉각 펌프를 함께 써요",p3:"⚗️ 3단계 — 가스가 차올라요! 제안을 맞추고 함께 넣어요",won:"✨ 솥의 정령이 진정됐어요!",lost:"💥 솥이 불안정해졌어요…"};
 function raidLabel(){
   const r=NET.raid;
   if(!r)return"🍲 폭주하는 솥 골렘 (레이드 모집하기)";
@@ -2061,6 +2094,8 @@ function raidP3Rebalance(r,live){
     for(const k of G)for(let i=0;i<left[k];i++){const to=live[RD.rr++%live.length];(add[to]=add[to]||{n2:0,o2:0,he:0})[k]++}
     add[u]=add[u]||{n2:0,o2:0,he:0};add[u].takeBack=left;   // 끊긴 사람의 보유량은 이미 쓴 만큼으로 줄인다
   }
+  // 끊긴 사람의 넣기 제안은 지운다(보유 캡슐이 넘어갔으므로 그대로 두면 확정이 계속 취소된다)
+  if(r.p3.prop)for(const u in r.p3.prop)if(!live.includes(u))NET.be.remove(`${raidPath()}/p3/prop/${u}`);
   for(const to in add){
     const cur=sup[to]||{n2:0,o2:0,he:0},nx={};
     if(add[to].takeBack){for(const k of G)nx[k]=(cur[k]|0)-add[to].takeBack[k]}
@@ -2068,9 +2103,27 @@ function raidP3Rebalance(r,live){
     NET.be.set(`${raidPath()}/p3/sup/${to}`,nx);
   }
 }
+// 3단계 '함께 넣기': 확정 시점의 제안 지문과 지금 제안이 같을 때만, 각자 보유한 캡슐 범위 안에서 모든 제안을 한꺼번에 넣는다(판정자만 쓴다).
+function raidP3Commit(r){
+  const c=r.p3.commit,base=raidPath()+"/p3";
+  const stop=msg=>{NET.be.remove(`${base}/commit`);if(msg)NET.be.set(`${base}/msg`,{t:NET.be.now(),text:msg})};
+  if(c.sig!==p3Sig(r)){stop("제안이 바뀌어서 함께 넣기가 취소됐어요. 다시 확인해 주세요.");return}
+  const props=p3Props(r),use=r.p3.use||{},sup=r.p3.sup||{},upd={};
+  for(const u in props){
+    const cur=use[u]||{},own=sup[u]||{};
+    for(const g_ of G3)if(props[u][g_]>((own[g_]|0)-(cur[g_]|0))){stop(`${(r.mem&&r.mem[u]&&r.mem[u].n)||"?"}님의 제안이 가진 캡슐보다 많아서 취소됐어요.`);return}
+    upd[u]={n2:(cur.n2|0)+props[u].n2,o2:(cur.o2|0)+props[u].o2,he:(cur.he|0)+props[u].he};
+  }
+  for(const u in upd)NET.be.set(`${base}/use/${u}`,upd[u]);
+  for(const u in props)NET.be.remove(`${base}/prop/${u}`);
+  NET.be.remove(`${base}/commit`);
+}
 // ----- 매 프레임 판정 -----
 function raidTick(dt){
-  RD.acc+=dt;if(RD.acc<.25)return;const step=RD.acc;RD.acc=0;
+  // 누적값(과열·안정화·끊김 시간)은 프레임 시간이 아니라 서버 시각의 실제 경과 시간으로 센다. 프레임이 느려도(저사양 기기, 탭이 잠깐 가려졌다 돌아옴) 시간이 어긋나지 않는다.
+  const nowT=NET.be.now();
+  if(RD.lastT&&nowT-RD.lastT<250)return;
+  const step=RD.lastT?clamp((nowT-RD.lastT)/1000,.05,1.5):.25;RD.lastT=nowT;
   const r=NET.raid;
   if(!r){RD.last="";RD.dead=0;return}
   const now=NET.be.now(),e=(now-r.t0)/1000,key=r.seq+":"+r.st,live=liveMem(r);
@@ -2083,29 +2136,36 @@ function raidTick(dt){
   if(key!==RD.last){
     // 단계가 바뀌는 순간을 지켜본 경우(처음 들어와서 보는 것이 아닐 때) 섬광과 안내 문구를 보여 준다. 참가자·구경꾼 모두 같다.
     if(RD.last&&RAID_BANNER[r.st]){RD.flash=.9;RD.flashSt=r.st;toast(RAID_BANNER[r.st],3200)}
-    RD.last=key;RD.meter=0;RD.drv=false;raidOnState(r);
+    RD.last=key;RD.meter=0;RD.stab=0;RD.drv=false;RD.msgT=(r.p3&&r.p3.msg&&r.p3.msg.t)||0;raidOnState(r);
   }
+  // 3단계 안내 문구(함께 넣기 취소 등)는 바뀐 것을 처음 본 순간에만 알려 준다
+  if(r.st==="p3"&&r.p3&&r.p3.msg&&r.p3.msg.t!==RD.msgT){RD.msgT=r.p3.msg.t;if(isMem(r))toast("⚗️ "+r.p3.msg.text,4200)}
   // 과열 누적: 판정자가 계산해 서버(hot)에 적어 두고, 나머지는 그 값을 읽는다. 판정자가 바뀌어도 거기서 이어 간다.
   if(r.st==="p2"){
     const s=p2State(r,e),hot=s.T>s.Tb;
     if(amDriver(r)){
-      if(!RD.drv){RD.drv=true;RD.meter=Math.max(RD.meter,r.hot||0)}
+      if(!RD.drv){RD.drv=true;RD.meter=Math.max(RD.meter,r.hot||0);RD.stab=Math.max(RD.stab,r.stab||0)}
       RD.meter=clamp(RD.meter+(hot?step:-step),0,6);
-      if(Math.abs((r.hot||0)-RD.meter)>=.4)raidWrite({hot:+RD.meter.toFixed(2)});
-    }else{RD.drv=false;RD.meter=r.hot||0}
+      RD.stab+=step*s.mult;   // 압력 밸브와 냉각 펌프를 함께 쓰면 안정화가 빨라진다(동조 ×1.5, 서로 다른 사람이면 ×2)
+      const w={};
+      if(Math.abs((r.hot||0)-RD.meter)>=.4)w.hot=+RD.meter.toFixed(2);
+      if(Math.abs((r.stab||0)-RD.stab)>=1)w.stab=+RD.stab.toFixed(1);
+      if(w.hot!==undefined||w.stab!==undefined)raidWrite(w);
+    }else{RD.drv=false;RD.meter=r.hot||0;RD.stab=r.stab||0}
   }
   if(curWin&&curWin.raid&&RD.liveFn)RD.liveFn();
   if(!amDriver(r))return;
   if(r.st==="p1"){
-    if(p1State(r).P<=GOAL_P+1e-9)raidWrite({st:"p2",t0:now,hot:0});
+    if(p1State(r).P<=GOAL_P+1e-9)raidWrite({st:"p2",t0:now,hot:0,stab:0});
     else if(e>P1_TIME)raidLose("제한 시간 안에 증기 압력을 목표까지 낮추지 못했어요.");
   }else if(r.st==="p2"){
     const s=p2State(r,e);
     if(s.Pext>PBURST+1e-9)raidLose(`외부 압력이 ${PBURST.toFixed(1)} atm을 넘어 솥이 터졌어요!`);
     else if(RD.meter>=6)raidLose("열원 온도가 끓는점을 넘은 과열 상태가 너무 오래 이어져 끓어 넘쳤어요!");
-    else if(e>=P2_TIME)raidStartP3(r);
+    else if(RD.stab>=P2_TIME)raidStartP3(r);   // 안정화 진행도가 가득 차면 3단계로(장치를 함께 쓰면 그만큼 일찍 끝난다)
   }else if(r.st==="p3"&&r.p3&&r.p3.need){
     raidP3Rebalance(r,live);
+    if(r.p3.commit){raidP3Commit(r);return}   // 이번 틱에는 넣기만 처리하고, 다음 틱에 갱신된 값으로 승패를 판정한다
     const u=use3(r),n=r.p3.need;
     if(u.n2>n.n2||u.o2>n.o2||u.he>n.he)raidLose("목표 분압을 넘겨서 용기가 과압으로 터졌어요!");
     else if(u.n2===n.n2&&u.o2===n.o2&&u.he===n.he)raidWrite({st:"won",t0:now,why:"세 기체의 분압이 목표와 정확히 맞았어요!"});
@@ -2115,7 +2175,7 @@ function raidTick(dt){
 }
 function netRaid(v){
   NET.raid=v||null;
-  const r=NET.raid,sig=r?r.seq+":"+r.st+":"+rMem(r).join(",")+":"+(r.p3&&r.p3.sup?JSON.stringify(r.p3.sup):""):"none";   // 캡슐 분배가 바뀌면 창도 다시 만든다
+  const r=NET.raid,sig=r?r.seq+":"+r.st+":"+rMem(r).join(",")+":"+(r.p3&&r.p3.sup?JSON.stringify(r.p3.sup):"")+":"+(r.p3&&r.p3.use?JSON.stringify(r.p3.use):"")+":"+(r.p3&&r.p3.prop&&r.p3.prop[NET.uid]?1:0):"none";   // 내 제안이 생기거나(확정으로) 사라지면 창을 다시 만들어 칸의 숫자를 서버 값에 맞춘다   // 캡슐 분배가 바뀌면 창도 다시 만든다
   if(sig!==RD.sig){RD.sig=sig;if(curWin&&curWin.raid)refreshWin()}
   else if(curWin&&curWin.raid&&RD.liveFn)RD.liveFn();
   updatePlazaHud();
@@ -2150,7 +2210,7 @@ function raidBuild(b){
   const r=NET.raid,live=[];RD.liveFn=()=>live.forEach(f=>f());
   if(!NET.ok){b.append(el("div","empty","광장에 연결 중이에요…"));return}
   if(!r){
-    b.append(el("div","note","솥 골렘이 끓어 넘치기 직전이에요! 힘을 합쳐 세 단계를 넘기면 진정시킬 수 있어요.<br>① <b>증기 방어막</b> — 용질을 넣어 증기 압력을 낮추기<br>② <b>과열 제어</b> — 압력 밸브로 끓는점을 조절해 끓어 넘침 막기<br>③ <b>가스 과압</b> — 목표 분압에 맞게 기체를 섞기<br>혼자서도 할 수 있지만 3명 이상이면 더 재미있어요. (최대 8명)"));
+    b.append(el("div","note","솥 골렘이 끓어 넘치기 직전이에요! 힘을 합쳐 세 단계를 넘기면 진정시킬 수 있어요.<br>① <b>증기 방어막</b> — 용질을 넣어 증기 압력을 낮추기<br>② <b>과열 제어</b> — 압력 밸브로 끓는점을 조절하고 냉각 펌프로 열원을 식혀 끓어 넘침 막기 (두 장치를 함께 쓰면 더 빨리 안정화!)<br>③ <b>가스 과압</b> — 목표 분압에 맞게 기체를 섞기<br>혼자서도 할 수 있지만 3명 이상이면 더 재미있어요. (최대 8명)"));
     const bt=el("button","btn","레이드 모집 시작");bt.onclick=()=>raidOpen();b.append(bt);return;
   }
   if(r.st==="lobby"){
@@ -2165,7 +2225,8 @@ function raidBuild(b){
     return;
   }
   const head=el("div","sub","");b.append(head);
-  const clock=()=>{const lim={p1:P1_TIME,p2:P2_TIME,p3:P3_TIME}[NET.raid.st];return lim?`남은 시간 ${Math.max(0,Math.ceil(lim-(NET.be.now()-NET.raid.t0)/1000))}초`:""};
+  const clock=()=>{const st=NET.raid.st,lim={p1:P1_TIME,p2:P2_TIME,p3:P3_TIME}[st];if(!lim)return"";
+    return st==="p2"?`안정화까지 약 ${Math.max(0,Math.ceil(P2_TIME-RD.stab))}초`:`남은 시간 ${Math.max(0,Math.ceil(lim-(NET.be.now()-NET.raid.t0)/1000))}초`};
   if(r.st==="won"||r.st==="lost"){
     head.textContent=r.st==="won"?"🎉 레이드 클리어!":"💥 레이드 실패";
     b.append(el("div","note",r.why||""));
@@ -2201,17 +2262,21 @@ function raidBuild(b){
     if(rows)b.append(el("div","",`<table><tr><th>이름</th><th>설탕</th><th>소금</th></tr>${rows}</table>`));
   }else if(r.st==="p2"){
     head.textContent="② 과열 제어 — 끓어 넘침을 막아라";
-    b.append(el("div","note",`열원 온도가 올라요. <b>열원 온도가 끓는점을 넘는 과열이 누적 6초</b> 이어지면 끓어 넘치고, <b>외부 압력이 ${PBURST.toFixed(1)} atm</b>을 넘으면 솥이 터져요. 각자 압력 밸브(한 칸 +0.1 atm, 최대 ${VMAX}칸)로 팀의 압력을 맞춰 끓는점을 조절하세요.
+    b.append(el("div","note",`열원 온도가 올라요. <b>열원 온도가 끓는점을 넘는 과열이 누적 6초</b> 이어지면 끓어 넘치고, <b>외부 압력이 ${PBURST.toFixed(1)} atm</b>을 넘으면 솥이 터져요. 각자 압력 밸브(한 칸 +0.1 atm, 최대 ${VMAX}칸)로 팀의 압력을 맞춰 끓는점을 조절하고, 냉각 펌프(8초 가동·6초 재충전)로 열원을 식혀 보세요.
       <details style="margin-top:4px"><summary style="cursor:pointer;font-weight:bold">📘 끓는점 오름 · 압력 · 끓어 넘침, 무엇이 다를까?</summary>
       • <b>용질 때문에 오르는 끓는점</b>(끓는점 오름): ΔTb = i·Kb·m. 1단계에서 넣은 용질의 양이 정하고, 밸브로는 바꿀 수 없어요.<br>
       • <b>압력 때문에 바뀌는 끓는점</b>: 외부 압력이 오르면 끓는점도 올라요(클라우지우스–클라페롱).<br>
       • <b>끓어 넘침</b>: 열원 온도가 끓는점을 넘는 과열이 이어질 때 격렬하게 끓어 넘치는 현상이에요. 끓는점을 높이면 과열을 늦출 수 있을 뿐, 끓는점 오름과 같은 현상은 아니에요.<br>
+      • <b>냉각 펌프</b>는 열원 온도만 낮춰요(끓는점 자체는 그대로). 압력 밸브는 끓는점을 올리고, 냉각 펌프는 열원을 식혀요 — 서로 다른 방법으로 과열을 막는 두 장치예요.<br>
       <small>참고(순수한 물): 1.5 atm ≈ 112 ℃ · 2.0 atm ≈ 121 ℃ · 3.0 atm ≈ 134 ℃</small></details>`));
-    const bT=lbar("열원 온도",200),bB=lbar("끓는점 Tb",200),bS=lbar("과열도 (T−Tb)",200),bPx=lbar("외부 압력",200),bM=lbar("끓어 넘침 위험",200),tm=el("div","note");
-    b.append(bT.row,bB.row,bS.row,bPx.row,bM.row,tm);
+    const ctl=el("div","");b.append(ctl);   // 조작부(압력 밸브·냉각 펌프)는 게이지 위에 둬서 스크롤 없이 바로 누를 수 있게 한다
+    const bT=lbar("열원 온도",200),bB=lbar("끓는점 Tb",200),bS=lbar("과열도 (T−Tb)",200),bPx=lbar("외부 압력",200),bM=lbar("끓어 넘침 위험",200),bST=lbar("안정화 진행도",200),syn=el("div","note"),tm=el("div","note");
+    b.append(bT.row,bB.row,bS.row,bPx.row,bM.row,bST.row,syn,tm);
     live.push(()=>{
       const R_=NET.raid,e=(NET.be.now()-R_.t0)/1000,s=p2State(R_,e);
-      bT.set(`${s.T.toFixed(1)} ℃`,(s.T-95)/40*100,s.T>s.Tb?"#e85a5a":"#e8802a");
+      bST.set(`${Math.min(100,Math.round(RD.stab/P2_TIME*100))}%${s.mult>1?` (×${s.mult})`:""}`,RD.stab/P2_TIME*100,s.mult>1?"#5cc9a7":"#8a8ea2");
+      syn.innerHTML=s.team?"🤝 <b>팀워크!</b> 서로 다른 사람이 압력 밸브와 냉각 펌프를 함께 쓰고 있어요. 안정화가 <b>2배</b> 빨라요.":s.syn?"🔗 <b>동조!</b> 압력 밸브와 냉각 펌프를 함께 쓰고 있어요. 안정화가 <b>1.5배</b> 빨라요. (서로 다른 사람이 쓰면 2배!)":"💡 압력 밸브(1칸 이상)와 냉각 펌프를 <b>함께</b> 쓰면 안정화가 빨라져요. 서로 다른 사람이 쓰면 더 빨라요.";
+      bT.set(`${s.T.toFixed(1)} ℃${s.pumps?` (냉각 −${PUMP_COOL*s.pumps})`:""}`,(s.T-95)/40*100,s.T>s.Tb?"#e85a5a":"#e8802a");
       bB.set(`${s.Tb.toFixed(1)} ℃ (압력 기준 ${tbPure(s.Pext).toFixed(1)} + 용질 +${s.dTb.toFixed(1)})`,(s.Tb-95)/40*100,"#4a9ee0");
       bS.set(`${s.T>s.Tb?"+":""}${(s.T-s.Tb).toFixed(1)} ℃${s.T>s.Tb?" 과열!":""}`,((s.T-s.Tb)+5)/10*100,s.T>s.Tb?"#e85a5a":"#6bc16b");
       bPx.set(`${s.Pext.toFixed(1)} atm / ${PBURST.toFixed(1)}`,s.Pext/PBURST*100,s.Pext>2.6?"#e85a5a":"#6bc16b");
@@ -2222,38 +2287,57 @@ function raidBuild(b){
       const valve=el("b","",""),setV=v=>NET.be.set(`${raidPath()}/p2/${NET.uid}`,clamp(v,0,VMAX));
       const m=el("button","btn sm","−"),p=el("button","btn sm","+");
       m.onclick=()=>setV(((NET.raid.p2&&NET.raid.p2[NET.uid])|0)-1);p.onclick=()=>setV(((NET.raid.p2&&NET.raid.p2[NET.uid])|0)+1);
-      const row=el("div","row");row.append(el("span","sub","🎛️ 내 압력 밸브"),m,valve,p);b.append(row);
+      const row=el("div","row");row.append(el("span","sub","🎛️ 내 압력 밸브"),m,valve,p);ctl.append(row);
       live.push(()=>{const v=(NET.raid.p2&&NET.raid.p2[NET.uid])|0;valve.textContent=`${v}칸 (+${(v*.1).toFixed(1)} atm)`});
+      // 냉각 펌프: 눌러서 가동 시작(8초), 끝나면 6초 재충전. 열원 온도만 낮추고 끓는점은 바꾸지 않는다.
+      const pb=el("button","btn","❄ 냉각 펌프 가동"),pi=el("span","note",""),prow=el("div","row");prow.append(el("span","sub","🧊 내 냉각 펌프"),pb,pi);ctl.append(prow);
+      pb.onclick=()=>{const now=NET.be.now();if(!pumpState(NET.raid,NET.uid,now).ready){toast("펌프가 아직 식고 있어요.");return}NET.be.set(`${raidPath()}/p2c/${NET.uid}`,now)};
+      live.push(()=>{const ps=pumpState(NET.raid,NET.uid,NET.be.now());pb.classList.toggle("dis",!ps.ready);pi.textContent=ps.on?`가동 중 ${Math.ceil(ps.left)}초 · 열원 온도 −${PUMP_COOL} ℃`:ps.ready?"준비됨 (8초 가동 · 6초 재충전)":`재충전 ${Math.ceil(ps.wait)}초`});
     }
     const mv=el("div","note");b.append(mv);
-    live.push(()=>{const R_=NET.raid,nw=NET.be.now();mv.innerHTML="밸브 현황: "+rMem(R_).map(u=>`${R_.mem[u].n} ${(R_.p2&&R_.p2[u])|0}칸${memAlive(u,nw)?"":" (연결 끊김·제외)"}`).join(" · ")});
+    live.push(()=>{const R_=NET.raid,nw=NET.be.now();mv.innerHTML="장치 현황: "+rMem(R_).map(u=>{const ps=pumpState(R_,u,nw);return`${R_.mem[u].n} 밸브 ${(R_.p2&&R_.p2[u])|0}칸${ps.on?" ❄":""}${memAlive(u,nw)?"":" (연결 끊김·제외)"}`}).join(" · ")});
   }else if(r.st==="p3"&&r.p3&&r.p3.need){
     head.textContent="③ 가스 과압 — 분압을 맞춰라";
     const need=r.p3.need;
-    b.append(el("div","note",`10 L 용기(300 K)에 기체 캡슐(1 mol)을 넣어요. 이 조건에서 <b>기체 1 mol의 압력은 ${f2(RT)} atm</b>이에요 (P = nRT/V). 목표 <b>분압</b>에 정확히 맞게 캡슐 수를 정하세요. <b>하나라도 넘기면 폭발</b>하고, 캡슐은 되돌릴 수 없어요. 여분의 캡슐이 섞여 있으니 팀원끼리 상의하세요!`));
+    b.append(el("div","note",`10 L 용기(300 K)에 기체 캡슐(1 mol)을 넣어요. 이 조건에서 <b>기체 1 mol의 압력은 ${f2(RT)} atm</b>이에요 (P = nRT/V). 목표 <b>분압</b>에 정확히 맞게 캡슐 수를 정하세요. 각자 <b>제안</b>을 적고 누군가 <b>함께 넣기</b>를 누르면 모든 제안이 한꺼번에 들어가요. 확정하는 사이에 제안이 바뀌면 취소돼요. <b>하나라도 넘기면 폭발</b>하고, 한 번 넣은 캡슐은 되돌릴 수 없어요. 여분의 캡슐이 섞여 있으니 팀원끼리 상의하세요!`));
     const bars={};
     for(const[k,nm,col]of GAS){bars[k]=lbar(nm+" 분압",230);b.append(bars[k].row)}
     const bt_=lbar("전체 압력",230);b.append(bt_.row);
     const tm=el("div","note");b.append(tm);
     live.push(()=>{
       const R_=NET.raid,u=use3(R_),nd=R_.p3.need;let cur=0,tgt=0;
-      for(const[k,,col]of GAS){cur+=u[k]*RT;tgt+=nd[k]*RT;bars[k].set(`${f2(u[k]*RT)} / 목표 ${f2(nd[k]*RT)} atm`,u[k]/nd[k]*100,u[k]>nd[k]?"#e85a5a":col)}
+      const pj=p3Totals(R_).proj;
+      for(const[k,,col]of GAS){cur+=u[k]*RT;tgt+=nd[k]*RT;const pend=pj[k]-u[k];bars[k].set(`${f2(u[k]*RT)}${pend?` (+${f2(pend*RT)} 제안)`:""} / 목표 ${f2(nd[k]*RT)} atm`,pj[k]/nd[k]*100,pj[k]>nd[k]?"#e85a5a":col)}
       bt_.set(`${f2(cur)} / 목표 ${f2(tgt)} atm`,cur/tgt*100,"#8a8ea2");tm.textContent=clock();
     });
     if(mine){
-      const sup=(r.p3.sup&&r.p3.sup[NET.uid])||{n2:0,o2:0,he:0},used=(r.p3.use&&r.p3.use[NET.uid])||{n2:0,o2:0,he:0};
-      b.append(el("div","sub","내 캡슐"));
+      const sup=(r.p3.sup&&r.p3.sup[NET.uid])||{n2:0,o2:0,he:0},used=(r.p3.use&&r.p3.use[NET.uid])||{n2:0,o2:0,he:0},myProp=r.p3.prop&&r.p3.prop[NET.uid];
+      RD.v3=myProp?{n2:myProp.n2|0,o2:myProp.o2|0,he:myProp.he|0}:{n2:0,o2:0,he:0};   // 내 제안은 서버에 적혀 있는 값에서 이어 간다
+      const propPath=`${raidPath()}/p3/prop/${NET.uid}`;
+      const writeProp=()=>{const t=RD.v3;if(t.n2||t.o2||t.he)NET.be.set(propPath,{n2:t.n2|0,o2:t.o2|0,he:t.he|0});else NET.be.remove(propPath)};
+      b.append(el("div","sub","내 넣기 제안 (확정하기 전에는 아무것도 들어가지 않아요)"));
       for(const[k,nm]of GAS){
         const avail=(sup[k]|0)-(used[k]|0),row=el("div","row");
-        row.append(el("span","",`${nm} (보유 ${avail}개)`),stepper(()=>RD.v3[k],v=>{RD.v3[k]=v},0,avail,v=>`${v}개`));b.append(row);
+        row.append(el("span","",`${nm} (보유 ${avail}개)`),stepper(()=>RD.v3[k],v=>{RD.v3[k]=v},0,avail,v=>`${v}개`,writeProp));b.append(row);
       }
-      const go=el("button","btn","용기에 넣기");
-      go.onclick=()=>{const t=RD.v3;if(!(t.n2||t.o2||t.he)){toast("넣을 캡슐 수를 정해 주세요.");return}
-        NET.be.set(`${raidPath()}/p3/use/${NET.uid}`,{n2:(used.n2|0)+t.n2,o2:(used.o2|0)+t.o2,he:(used.he|0)+t.he});RD.v3={n2:0,o2:0,he:0};refreshWin()};
-      b.append(go);
+      const bc=el("div","row"),clr=el("button","btn","내 제안 지우기"),go=el("button","btn on","🤝 함께 넣기 (확정)");
+      clr.onclick=()=>{RD.v3={n2:0,o2:0,he:0};NET.be.remove(propPath);refreshWin()};
+      go.onclick=()=>{const R_=NET.raid;if(!R_.p3||R_.p3.commit)return;
+        if(!Object.keys(p3Props(R_)).length){toast("먼저 넣을 캡슐을 제안해 주세요.");return}
+        NET.be.set(`${raidPath()}/p3/commit`,{by:NET.uid,sig:p3Sig(R_),t:NET.be.now()})};   // 지금 보이는 제안 그대로만 넣는다(그 사이 바뀌면 취소)
+      bc.append(clr,go);b.append(bc);
     }
     const hv=el("div","note");b.append(hv);
-    live.push(()=>{const R_=NET.raid;if(!R_.p3)return;hv.innerHTML="팀원 보유 캡슐: "+rMem(R_).map(u=>{const s=(R_.p3.sup&&R_.p3.sup[u])||{},w=(R_.p3.use&&R_.p3.use[u])||{};return`${R_.mem[u].n} N₂${(s.n2|0)-(w.n2|0)} O₂${(s.o2|0)-(w.o2|0)} He${(s.he|0)-(w.he|0)}`}).join(" · ")});
+    live.push(()=>{
+      const R_=NET.raid;if(!R_.p3)return;
+      const pr=p3Props(R_),{use,proj}=p3Totals(R_),nd=R_.p3.need,over=G3.some(g_=>proj[g_]>nd[g_]),exact=G3.every(g_=>proj[g_]===nd[g_]);
+      const props=Object.keys(pr).map(u=>`${(R_.mem&&R_.mem[u]&&R_.mem[u].n)||"?"}: N₂${pr[u].n2} O₂${pr[u].o2} He${pr[u].he}`);
+      hv.innerHTML="팀원 보유 캡슐: "+rMem(R_).map(u=>{const s=(R_.p3.sup&&R_.p3.sup[u])||{},w=(R_.p3.use&&R_.p3.use[u])||{};return`${R_.mem[u].n} N₂${(s.n2|0)-(w.n2|0)} O₂${(s.o2|0)-(w.o2|0)} He${(s.he|0)-(w.he|0)}`}).join(" · ")
+        +`<br>📝 팀 제안: ${props.join(" · ")||"아직 없어요"}`
+        +`<br>넣은 뒤 예상: N₂ ${proj.n2}/${nd.n2} · O₂ ${proj.o2}/${nd.o2} · He ${proj.he}/${nd.he} `
+        +(over?"<b style='color:#c0392b'>⚠ 목표 초과! 이대로 확정하면 폭발해요</b>":exact?"<b style='color:#2e8b57'>✓ 정확히 맞아요</b>":"")
+        +(R_.p3.commit?"<br>⏳ 함께 넣는 중…":"");
+    });
   }else b.append(el("div","empty","상태를 불러오는 중이에요…"));
   RD.liveFn();
 }
