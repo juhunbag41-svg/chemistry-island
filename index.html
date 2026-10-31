@@ -149,7 +149,7 @@
   <div id="track" class="pill"></div>
   <div id="netpill" class="pill"></div>
   <div id="raidhud" class="pill"></div>
-  <div id="hint" class="pill">방향키/WASD 이동 · E 상호작용 · I 보관함 · Q 일지 · M 지도 · H 도움말</div>
+  <div id="hint" class="pill">방향키/WASD 이동 · Shift 달리기 · E 상호작용 · I 보관함 · Q 일지 · M 지도 · H 도움말</div>
   <div id="toast"></div>
   <div id="cap"></div>
   <button id="skip" type="button">건너뛰기 ⏭</button>
@@ -158,7 +158,7 @@
   <div id="start">
     <h1>화학 섬 이야기</h1>
     <p>작은 섬에 도착한 새 연구원! 재료를 모으고, 물건을 만들고, 돌턴 박사와 함께 화학을 실험하며 섬을 가꿔 보세요.</p>
-    <p>이동 방향키/WASD · 상호작용 E(Space) · 보관함 I · 일지 Q · 지도 M</p>
+    <p>이동 방향키/WASD · 달리기 Shift · 상호작용 E(Space) · 보관함 I · 일지 Q · 지도 M</p>
     <div id="smain">
       <button class="btn" id="bnew">새로 시작</button>
       <button class="btn" id="bcont" style="display:none">이어하기</button>
@@ -851,10 +851,11 @@ function movePlayer(dt){
   if(!P.moving)return;
   if(ax&&ay){ax*=.7071;ay*=.7071}
   if(Math.abs(ax)>=Math.abs(ay))P.dir=ax>0?2:1;else P.dir=ay>0?0:3;
-  const sp=66*dt;
+  const run=!!(keys.ShiftLeft||keys.ShiftRight||keys.PadRun);   // Shift(모바일은 패드 바깥쪽)를 누르고 있으면 달린다
+  const sp=(run?106:66)*dt;
   let nx=P.x+ax*sp;if(!boxHit(nx,P.y))P.x=nx;
   let ny=P.y+ay*sp;if(!boxHit(P.x,ny))P.y=ny;
-  P.t+=dt*9;P.fr=Math.floor(P.t)%4;
+  P.t+=dt*(run?13:9);P.fr=Math.floor(P.t)%4;
 }
 // ================= 돌턴 =================
 const SPOTS=[[13,23],[24,21],[19,17],[31,17],[26,30],[16,34],[14,22]];
@@ -1257,7 +1258,7 @@ function winMap(){
   },560);
 }
 function winHelp(){
-  openWin("❓ 도움말",b=>b.append(el("div","",`<b>이동</b> 방향키 / WASD<br><b>상호작용</b> E · Space · Enter (바라보는 방향의 대상)<br><b>보관함</b> I　<b>일지</b> Q　<b>지도</b> M　<b>닫기</b> Esc<br><br>🌿 <b>모으기</b> 강물(물), 사탕수수(설탕), 해변 바위(소금), 모래 X표(모래), 나무 흔들기(나뭇가지), 꽃, 반짝이는 종이<br>🔨 <b>만들기</b> 공방 제작대 / 요리방 용액 실험 / 기체 실험대<br>🛍️ <b>팔기·사기</b> 상점 계산대<br>🪴 <b>꾸미기</b> 보관함에서 꾸미기 아이템 선택 → ‘내려놓기’ (놓은 것은 E로 다시 거둘 수 있어요)<br>😴 <b>잠자기</b> 내 집 침대 → 새 하루, 재료 다시 자람<br>🌐 <b>광장</b> 동쪽 이벤트 광장의 포털 → 공용 광장 (숫자 1~8 이모티콘, 채팅 없음). 가운데 솥 골렘과 협동 레이드: 증기 압력 내림 → 과열 제어(용질·압력에 따른 끓는점, 끓어 넘침) → 돌턴의 분압 법칙. 솥 불안정도 게이지가 가득 차기 전에 진정시켜요.<br><br>돌턴 박사는 섬을 산책하기도 해요. 일지(Q)에서 지금 어디쯤 있는지 알 수 있어요.`),360));
+  openWin("❓ 도움말",b=>b.append(el("div","",`<b>이동</b> 방향키 / WASD　<b>달리기</b> Shift를 누른 채 이동 (모바일은 방향 패드를 끝까지 밀기)<br><b>상호작용</b> E · Space · Enter (바라보는 방향의 대상)<br><b>보관함</b> I　<b>일지</b> Q　<b>지도</b> M　<b>닫기</b> Esc<br><br>🌿 <b>모으기</b> 강물(물), 사탕수수(설탕), 해변 바위(소금), 모래 X표(모래), 나무 흔들기(나뭇가지), 꽃, 반짝이는 종이<br>🔨 <b>만들기</b> 공방 제작대 / 요리방 용액 실험 / 기체 실험대<br>🛍️ <b>팔기·사기</b> 상점 계산대<br>🪴 <b>꾸미기</b> 보관함에서 꾸미기 아이템 선택 → ‘내려놓기’ (놓은 것은 E로 다시 거둘 수 있어요)<br>😴 <b>잠자기</b> 내 집 침대 → 새 하루, 재료 다시 자람<br>🌐 <b>광장</b> 동쪽 이벤트 광장의 포털 → 공용 광장 (숫자 1~8 이모티콘, 채팅 없음). 가운데 솥 골렘과 협동 레이드: 증기 압력 내림 → 과열 제어(용질·압력에 따른 끓는점, 끓어 넘침) → 돌턴의 분압 법칙. 솥 불안정도 게이지가 가득 차기 전에 진정시켜요.<br><br>돌턴 박사는 섬을 산책하기도 해요. 일지(Q)에서 지금 어디쯤 있는지 알 수 있어요.`),360));
 }
 
 // ================= 그리기 =================
@@ -1664,7 +1665,7 @@ function netLeave(){
   try{if(NET.ok&&NET.raid&&NET.raid.st==="lobby"&&isMem(NET.raid))raidLeave()}catch(e){}
   NET.tok++;NET.connecting=false;NET.pending=null;for(const u of NET.subs){try{u()}catch(e){}}NET.subs=[];
   if(NET.ok&&NET.be&&NET.path){try{NET.be.remove(NET.path)}catch(e){}}
-  NET.ok=false;NET.kicked=false;NET.playersReady=false;NET.players={};NET.remote={};NET.raid=null;NET.count=0;PLZ.myEmo=null;RD.liveFn=null;RD.last="";RD.dead=0;RD.ghost={};RD.drv=false;RD.danger=0;RD.flash=0;RD.lastT=0;
+  NET.ok=false;NET.kicked=false;NET.playersReady=false;NET.players={};NET.remote={};NET.raid=null;NET.count=0;PLZ.myEmo=null;RD.liveFn=null;RD.last="";RD.dead=0;RD.ghost={};RD.drv=false;RD.danger=0;RD.flash=0;RD.lastT=0;ZB.list.length=0;
 }
 // 같은 계정(UID)의 접속인가? (내 것 포함, 예전 방식의 UID 그대로인 키도 포함)
 const isMine=k=>!!NET.auth&&(k===NET.auth||k.startsWith(NET.auth+"_"));
@@ -1704,7 +1705,7 @@ function remotePal(r){return{skin:"#ffd9b8",hair:HAIRS[r.s%4],top:SHIRTS[r.s],bo
 // ---------- 광장 맵 ----------
 const PW=50,PH=34;
 const PLZ={built:false,tiles:new Uint8Array(PW*PH),solid:new Uint8Array(PW*PH),objs:[],inter:[],ground:null,gsp:null,spawn:[25*16,25*16+8],hud:0,myEmo:null};
-const HINT_OUT=$("hint").textContent,HINT_PLAZA="방향키/WASD 이동 · E 상호작용 · 숫자 1~8 이모티콘 · I 보관함 · H 도움말";
+const HINT_OUT=$("hint").textContent,HINT_PLAZA="방향키/WASD 이동 · Shift 달리기 · E 상호작용 · 숫자 1~8 이모티콘 · I 보관함 · H 도움말";
 const ptile=(x,y)=>x<0||y<0||x>=PW||y>=PH?0:PLZ.tiles[y*PW+x];
 function buildPlazaOnce(){
   if(PLZ.built)return;PLZ.built=true;
@@ -1776,6 +1777,7 @@ function plazaRender(fr,dr){
   g.drawImage(PLZ.ground,gx,gy,VW,VH,0,0,VW,VH);
   for(const o of PLZ.objs){const px=o.tx*16,py=o.ty*16;if(px+o.tw*16+24<cam.x||px-24>cam.x+VW||py+o.th*16+16<cam.y||py-40>cam.y+VH)continue;dr.push([o.sy,()=>drawObj(o,fr)])}
   for(const uid in NET.remote){const r=NET.remote[uid];dr.push([r.y,()=>{person(r.x,r.y,r.d,0,false,remotePal(r),r.anim);labels.push([r.x,r.y-33,r.n])}])}
+  for(const z of ZB.list)dr.push([z.y,()=>zbDraw(z)]);
   labels.push([P.x,P.y-33,S.flags.nick||"나"]);
 }
 function plazaOverlay(){
@@ -2009,12 +2011,70 @@ function raidDanger(){
 function raidFxUpdate(dt){
   RD.danger+=(raidDanger()-RD.danger)*Math.min(1,dt*3);
   if(RD.flash>0)RD.flash=Math.max(0,RD.flash-dt);
+  zbUpdate(dt);
+}
+// ----- 연출 전용: 좀비 (오염된 증기에서 깨어나 솥 주변을 서성이는 좀비들) -----
+// 수와 기세는 솥 불안정도(RD.danger)와 참가 인원을 따라간다. 화면에만 그려지며 판정·서버 데이터·충돌에는 영향이 없다(플레이어를 막거나 해치지 않는다).
+// 각자의 브라우저에서 따로 움직이므로 사람마다 좀비 위치가 조금씩 다르다.
+const ZB={list:[],cool:0,CX:22*16+32,CY:11*16+30};
+const ZB_COL=[["#4f64a8","#34437c"],["#a85a5a","#7a3c3c"],["#6f7a5a","#4a5440"],["#c8a050","#8a6c30"]];   // 교복·옷 색(몸통, 깃)
+function zbSpawn(){
+  for(let k=0;k<14;k++){
+    const a=Math.random()*6.283,rr=104+Math.random()*30,x=ZB.CX+Math.cos(a)*rr,y=ZB.CY+Math.sin(a)*rr*.75;
+    if(boxHit(x,y))continue;
+    ZB.list.push({x,y,t:Math.random()*4,ph:Math.random()*6.28,sp:14+Math.random()*10,v:(Math.random()*ZB_COL.length)|0,o:Math.random()<.5?1:-1,tr:52+Math.random()*16,die:0,face:1,band:Math.random()<.3,blood:Math.random()<.5});
+    return;
+  }
+}
+function zbUpdate(dt){
+  const r=NET.raid,st=r&&NET.ok?r.st:"none",hot=st==="p1"||st==="p2"||st==="p3"||st==="lost";
+  const cap=document.documentElement.classList.contains("mob")?6:11,d=st==="lost"?1:RD.danger;
+  const want=hot?Math.min(cap,Math.round(2+6*d+Math.min(3,(r.N||1)-1))):0;
+  let alive=0;for(const z of ZB.list)if(!z.die)alive++;
+  if(alive>want){for(let i=ZB.list.length-1;i>=0&&alive>want;i--)if(!ZB.list[i].die){ZB.list[i].die=.001;alive--}}   // 줄어들 때는 정화되며 사라진다
+  else if(alive<want&&(ZB.cool-=dt)<=0){ZB.cool=.6;zbSpawn()}
+  for(let i=ZB.list.length-1;i>=0;i--){
+    const z=ZB.list[i];
+    if(z.die){z.die+=dt/1.4;if(z.die>=1)ZB.list.splice(i,1);continue}
+    const dx=ZB.CX-z.x,dy=ZB.CY-z.y,dist=Math.hypot(dx,dy)||1;
+    z.t+=dt*(3+3*d);
+    const lurch=.35+.65*(.5+.5*Math.sin(time*4+z.ph)),k=(.5+.9*d)*lurch*z.sp*dt;   // 비틀비틀 끌듯이 걷는다
+    let vx,vy;
+    if(dist>z.tr+5){vx=dx/dist;vy=dy/dist}                                              // 솥 쪽으로 다가오고
+    else{vx=-dy/dist*z.o;vy=dx/dist*z.o;if(dist<z.tr-5){vx-=dx/dist*.6;vy-=dy/dist*.6}}   // 가까워지면 솥 둘레를 맴돈다
+    const nx=z.x+vx*k;if(!boxHit(nx,z.y))z.x=nx;else z.o=-z.o;
+    const ny=z.y+vy*k;if(!boxHit(z.x,ny))z.y=ny;else z.o=-z.o;
+    if(vx)z.face=vx>0?1:-1;
+  }
+}
+function zbDraw(z){
+  const x=Math.round(z.x),y=Math.round(z.y),st=Math.floor(z.t)%4,bob=Math.floor(z.t*.5+z.ph)%2,lr=Math.round(Math.sin(z.t*1.5+z.ph));
+  const[c0,c1]=ZB_COL[z.v],f=z.face,skin="#8fc46a",skinD="#6fa04e",pants="#39405c";
+  if(z.die)g.globalAlpha=Math.max(0,1-z.die);
+  R(x-7,y-2,14,4,"rgba(0,0,0,.25)");
+  R(x-4,y-8,3,8-st%2,pants);R(x+1,y-8,3,8-(st+1)%2,pants);                                       // 다리
+  R(x-5,y-18+bob,10,11,c0);R(x-5,y-18+bob,10,2,c1);R(x,y-16+bob,2,7,"#c0392b");                  // 몸통(교복)·깃·넥타이
+  if(z.blood)R(x+1,y-12+bob,3,3,"#8a2a2a");
+  R(x-9,y-17+bob+lr,4,3,c0);R(x-12,y-18+bob+lr,3,3,skin);R(x+5,y-17+bob-lr,4,3,c0);R(x+9,y-18+bob-lr,3,3,skin);   // 앞으로 뻗은 팔
+  R(x-5,y-28+bob,10,10,skin);R(x-5,y-28+bob,10,3,"#3b3a30");R(x+2,y-26+bob,2,1,skinD);          // 머리·머리카락·꿰맨 자국
+  R(x-3,y-24+bob,2,3,"#f4f0c0");R(x+1,y-24+bob,2,3,"#f4f0c0");R(x-3+(f>0?1:0),y-23+bob,1,2,"#a02020");R(x+1+(f>0?1:0),y-23+bob,1,2,"#a02020");
+  R(x-2,y-20+bob,4,2,"#3a1a1a");R(x-1,y-20+bob,1,1,"#fff");R(x+1,y-20+bob,1,1,"#fff");
+  if(z.band){R(x-5,y-27+bob,10,2,"#e8e4d4");R(x+1,y-27+bob,2,2,"#c0392b")}
+  if(z.die)for(let i=0;i<5;i++){const p=(z.die*1.2+i*.2)%1;R(x-6+i*3,y-8-Math.round(p*26),2,2,`rgba(170,255,180,${(.9*(1-p)).toFixed(2)})`)}   // 정화되며 초록빛이 올라간다
+  g.globalAlpha=1;
 }
 // 화면 위 효과(낮밤 색조 위에 얹는다): 솥 주변 빛, 위험할 때 붉은 테두리, 단계 전환 섬광
 function plazaRaidFx(){
   const r=NET.raid;if(!r||!NET.ok)return;
   const st=r.st,act=st==="p1"||st==="p2"||st==="p3",d=RD.danger,t=time;
   const gx=Math.round(22*16+32-cam.x),gy=Math.round(11*16+24-cam.y);
+  if(act||st==="lost"){   // 좀비 사태 분위기: 독한 초록빛 색조, 어두운 가장자리, 떠다니는 안개
+    const zd=st==="lost"?1:d;
+    g.fillStyle=`rgba(24,70,36,${(.05+.13*zd).toFixed(3)})`;g.fillRect(0,0,VW,VH);
+    const vg=g.createRadialGradient(VW/2,VH/2,VH*.35,VW/2,VH/2,VH*.85);vg.addColorStop(0,"rgba(8,24,12,0)");vg.addColorStop(1,`rgba(8,24,12,${(.25+.3*zd).toFixed(2)})`);g.fillStyle=vg;g.fillRect(0,0,VW,VH);
+    if(!REDUCE){const nf=document.documentElement.classList.contains("mob")?7:14;
+      for(let i=0;i<nf;i++){g.fillStyle=`rgba(130,220,140,${(.05+.05*zd).toFixed(3)})`;g.fillRect(Math.round(((i*61+t*(6+i%4*3))%(VW+40))-20),Math.round((i*47+Math.sin(t*.6+i)*10)%VH),22,3)}}
+  }
   const fd=(cx,cy,rr)=>{for(let dy=-rr;dy<=rr;dy++){const w=Math.floor(Math.sqrt(rr*rr+rr*.8-dy*dy));g.fillRect(cx-w,cy+dy,w*2+1,1)}};
   if(act||st==="lobby"||st==="won"){
     const[sr,sg,sb]=steamRGB(act?d:0),k=act?.05+.09*d:.04;
@@ -2043,7 +2103,7 @@ function raidRecordHtml(){
   const best=S.flags.raidBest||{},keys=Object.keys(best).sort((a,b)=>(+a.slice(1))-(+b.slice(1))),k=raidTodayCount();
   return`📊 <b>내 기록</b>: 지금까지 ${S.flags.raidWins|0}번 클리어${keys.length?`<br>🏆 최단 기록 — `+keys.map(x=>`${x.slice(1)}명 ${fmtSecs(best[x])}`).join(" · "):""}<br>🪙 오늘 ${k}번 클리어 → 다음 보상 <b>${Math.round(raidMult(k)*100)}%</b>${(S.flags.raidWins|0)===0?` · 첫 클리어 보너스 +${RAID_FIRST_BONUS}`:""}`;
 }
-const RAID_BANNER={p1:"🍲 1단계 — 증기 방어막! 용질로 증기 압력을 낮춰요",p2:"🌡️ 2단계 — 열원이 뜨거워져요! 압력 밸브와 냉각 펌프를 함께 써요",p3:"⚗️ 3단계 — 가스가 차올라요! 제안을 맞추고 함께 넣어요",won:"✨ 솥의 정령이 진정됐어요!",lost:"💥 솥이 불안정해졌어요…"};
+const RAID_BANNER={p1:"🧟 1단계 — 오염된 증기에서 좀비가 깨어나요! 용질로 증기 압력을 낮춰요",p2:"🧟 2단계 — 열원이 뜨거워지고 좀비가 몰려와요! 압력 밸브와 냉각 펌프를 함께 써요",p3:"🧟 3단계 — 가스가 차오르고 좀비 떼가 모여요! 제안을 맞추고 함께 넣어요",won:"✨ 솥이 진정되고 좀비들이 정화됐어요!",lost:"💥 솥이 불안정해지고 좀비 떼가 광장을 덮쳤어요…"};
 function raidLabel(){
   const r=NET.raid;
   if(!r)return"🍲 폭주하는 솥 골렘 (레이드 모집하기)";
@@ -2717,13 +2777,13 @@ const fire=(type,code)=>dispatchEvent(new KeyboardEvent(type,{code,key:code.repl
 // ---- 방향 패드
 const DIRS={L:"ArrowLeft",R:"ArrowRight",U:"ArrowUp",D:"ArrowDown"},flags={L:0,R:0,U:0,D:0},arrows={};
 pad.querySelectorAll("i").forEach(i=>arrows[i.dataset.d]=i);
-function applyFlags(){for(const k in DIRS){keys[DIRS[k]]=!!flags[k]||!!kb[DIRS[k]];arrows[k].classList.toggle("on",!!flags[k])}}
+function applyFlags(){for(const k in DIRS){keys[DIRS[k]]=!!flags[k]||!!kb[DIRS[k]];arrows[k].classList.toggle("on",!!flags[k])}keys.PadRun=!!flags.run;knob.style.background=flags.run?"rgba(255,140,60,.9)":""}
 let padId=null;
-function padRelease(){padId=null;flags.L=flags.R=flags.U=flags.D=0;knob.style.transform="";pad.classList.remove("down");applyFlags()}
+function padRelease(){padId=null;flags.L=flags.R=flags.U=flags.D=flags.run=0;knob.style.transform="";pad.classList.remove("down");applyFlags()}
 function padMove(e){
   const r=pad.getBoundingClientRect(),R=r.width/2,dx=e.clientX-(r.left+R),dy=e.clientY-(r.top+R),m=Math.hypot(dx,dy);
-  if(m<R*.2){flags.L=flags.R=flags.U=flags.D=0}
-  else{flags.L=dx<0&&-dx>m*.38;flags.R=dx>0&&dx>m*.38;flags.U=dy<0&&-dy>m*.38;flags.D=dy>0&&dy>m*.38}
+  if(m<R*.2){flags.L=flags.R=flags.U=flags.D=flags.run=0}
+  else{flags.L=dx<0&&-dx>m*.38;flags.R=dx>0&&dx>m*.38;flags.U=dy<0&&-dy>m*.38;flags.D=dy>0&&dy>m*.38;flags.run=m>R*.85}   // 패드를 끝까지 밀면 달리기(손잡이가 주황색으로 바뀜)
   const k=m?Math.min(m,R*.55)/m:0;knob.style.transform=`translate(${dx*k}px,${dy*k}px)`;applyFlags();
 }
 pad.addEventListener("pointerdown",e=>{if(padId!==null)return;padId=e.pointerId;try{pad.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault();padMove(e)});
