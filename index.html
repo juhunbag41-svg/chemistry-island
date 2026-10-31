@@ -335,7 +335,14 @@ const EVENTS=[
  {id:"e3",t:"짭짤한 전시 용액",d:"소금 용액(아무 농도) 1병을 제출해요.",test:()=>solHave("salt",1),take:()=>takeSol("salt",1),coin:70},
  {id:"e4",t:"기체 혼합 경연",d:"질소·산소·헬륨을 모두 쓴 혼합 실험 기록이 있어야 해요.",test:()=>S.lab.mix.some(m=>m.n2>0&&m.o2>0&&m.he>0),take:()=>{},coin:90,items:{cap_he:1}},
  {id:"e5",t:"섬 꾸미기 콘테스트",d:"꾸미기 아이템을 섬에 2개 이상 놓아요.",test:()=>S.placed.length>=2,take:()=>{},coin:50,items:{flower:2}},
- {id:"e6",t:"연구 전시",d:"연구 노트 1권을 전시해요.",test:()=>have("notebook")>=1,take:()=>take("notebook",1),coin:70}
+ {id:"e6",t:"연구 전시",d:"연구 노트 1권을 전시해요.",test:()=>have("notebook")>=1,take:()=>take("notebook",1),coin:70},
+ {id:"e7",t:"진한 설탕 용액 전시",d:"설탕 용액(4스푼) 1병을 제출해요. 용질이 많을수록 증기 압력이 더 내려가요.",test:()=>solHave("sugar",4),take:()=>takeSol("sugar",4),coin:100,items:{sugar:2}},
+ {id:"e8",t:"설탕 vs 소금 비교 발표",d:"같은 스푼 수로 설탕 용액과 소금 용액을 둘 다 만들어 측정한 기록이 있어야 해요. (소금은 이온 2개로 나뉘어 효과가 약 2배)",test:()=>S.lab.sol.some(a=>a.s==="sugar"&&S.lab.sol.some(b=>b.s==="salt"&&b.n===a.n)),take:()=>{},coin:100,items:{salt:2}},
+ {id:"e9",t:"기체 측정 기록 대회",d:"기체 주사기 실험대에서 측정 기록을 3개 이상 남겨요. (보일·샤를 법칙)",test:()=>S.lab.gas.length>=3,take:()=>{},coin:80,items:{cap_n2:1}},
+ {id:"e10",t:"화학 퀴즈 왕",d:"화학 도감에 개념을 5개 이상 채워요.",test:()=>Object.keys(S.notes).length>=5,take:()=>{},coin:90,items:{cap_o2:1}},
+ {id:"e11",t:"대형 얼음 조각전",d:"얼음 6개를 전시대에 올려요. (얼음은 물에 뜨는 수소 결합 구조)",test:()=>have("ice")>=6,take:()=>take("ice",6),coin:110},
+ {id:"e12",t:"소금 램프 전시",d:"소금 램프 1개를 전시해요.",test:()=>have("saltlamp")>=1,take:()=>take("saltlamp",1),coin:120,items:{salt:3}},
+ {id:"e13",t:"섬 꾸미기 결선",d:"꾸미기 아이템을 섬에 4개 이상 놓아요.",test:()=>S.placed.length>=4,take:()=>{},coin:100,items:{flower:3,stick:2}}
 ];
 
 // ================= 상태 =================
