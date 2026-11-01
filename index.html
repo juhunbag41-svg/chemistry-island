@@ -203,6 +203,8 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const f2=n=>(Math.round(n*100)/100).toFixed(2);
 function mulberry(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e}
+// 서버에서 온 문자열(닉네임·결과 문구 등)은 HTML 로 넣지 말고 반드시 esc 를 거친다(남이 심은 태그가 내 화면에서 실행되지 않게).
+const esc=s=>String(s==null?"":s).replace(/[&<>"'`]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","`":"&#96;"}[c]));
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 
 // ================= 데이터 =================
@@ -351,7 +353,7 @@ let saveWarned=false;
 function save(){try{const out=scene==="out"?[P.x,P.y]:lastOut;localStorage.setItem(SAVE,JSON.stringify({S,px:out[0],py:out[1],dx:D.x,dy:D.y}));return true}catch(e){
   if(!saveWarned){saveWarned=true;toast("⚠️ 이 환경에서는 저장이 막혀 있어요. 파일을 크롬·엣지에서 직접 열면 저장돼요.",5000)}return false}}
 let lastOut=[0,0];
-function loadSave(){try{const j=JSON.parse(localStorage.getItem(SAVE));if(!j)return false;S=Object.assign(newState(),j.S);P.x=j.px;P.y=j.py;D.x=j.dx;D.y=j.dy;return true}catch(e){return false}}
+function loadSave(){try{const j=JSON.parse(localStorage.getItem(SAVE));if(!j)return false;S=Object.assign(newState(),j.S);if(!Number.isFinite(S.coins))S.coins=0;P.x=j.px;P.y=j.py;D.x=j.dx;D.y=j.dy;return true}catch(e){return false}}
 function give(id,n=1){S.inv[id]=have(id)+n;if(scene&&started)floaters.push({x:P.x,y:P.y-26,t:`+${n} ${ITEMS[id].e} ${ITEMS[id].n}`,a:0})}
 function take(id,n=1){S.inv[id]=have(id)-n;if(S.inv[id]<=0)delete S.inv[id]}
 
@@ -1935,6 +1937,8 @@ const P1_TIME=150,P2_TIME=45,P2_RISE=40,P2_GRACE=3,P3_TIME=150,CAP1=8,VMAX=5,PBU
 const RD={acc:0,sig:"",last:"",meter:0,done:0,liveFn:null,add:{u:0,a:0},v3:{n2:0,o2:0,he:0},dead:0,ghost:{},drv:false,deadAfter:60,ghostAfter:30,rr:0,danger:0,flash:0,flashSt:"",stab:0,msgT:0};
 const GOAL_P=P0*(1-GOAL_X);
 const rMem=r=>Object.keys((r&&r.mem)||{});
+// 참가자 이름: 서버 값이므로 길이를 자르고 HTML 을 이스케이프해서 돌려준다(없으면 "?").
+const rname=(r,u)=>esc(String((r&&r.mem&&r.mem[u]&&r.mem[u].n)||"?").slice(0,8));
 const isMem=r=>!!(r&&r.mem&&NET.uid&&r.mem[NET.uid]);
 const raidPath=()=>`plaza/${NET.ch}/raid`;
 // 접속해 있는 참가자: 나 자신이거나, 하트비트가 STALE 안쪽인 사람
@@ -2195,18 +2199,35 @@ function netRaid(v){
   else if(curWin&&curWin.raid&&RD.liveFn)RD.liveFn();
   updatePlazaHud();
 }
+// 클리어 보상을 줘도 되는 레이드 데이터인지 검사한다. 서버 값은 누구나 쓸 수 있으므로 내 저장 데이터에 반영하기 전에 걸러 낸다.
+// - N 은 1~RAID_MAX 의 정수, seq·t0·start 는 서버 시각 범위의 숫자이고 start<t0, 걸린 시간은 5초~1시간
+// - seq 는 마지막으로 받은 것보다 커야 하고(번갈아 쓰는 값으로 반복 지급 불가), 직전 지급 후 30초가 지나야 함
+// - 진행 중인 레이드를 내가 직접 봤거나(RD.seen), 클리어가 방금(2분 이내) 일어난 경우만 인정
+function raidRewardOk(r){
+  const now=NET.be?NET.be.now():Date.now(),fin=Number.isFinite;
+  if(!r||!Number.isInteger(r.N)||r.N<1||r.N>RAID_MAX)return false;
+  if(!fin(r.seq)||!fin(r.t0)||r.seq>now+5000||r.seq<=0||r.t0>now+5000)return false;
+  if(r.start!==undefined){if(!fin(r.start)||r.start>r.t0)return false;const sec=(r.t0-r.start)/1000;if(sec<5||sec>3600)return false}
+  if(typeof S.flags.raidSeq==="number"&&r.seq<=S.flags.raidSeq)return false;
+  if(S.flags.raidAt&&now-S.flags.raidAt<30000)return false;
+  return RD.seen===r.seq||now-r.t0<=120000;
+}
 function raidOnState(r){
   if(!isMem(r))return;
   if(r.st==="p1"||r.st==="p2"||r.st==="p3"){
+    RD.seen=r.seq;   // 진행 중인 레이드를 내가 직접 본 적이 있는지(보상 검증용)
     RD.add={u:0,a:0};RD.v3={n2:0,o2:0,he:0};
     if(!dl&&(!curWin||curWin.raid)){if(curWin)refreshWin();else winRaid()}
   }else if(r.st==="won"||r.st==="lost"){
     if(RD.done!==r.seq){
       RD.done=r.seq;
       // 보상은 레이드(seq)마다 한 번만: 마지막으로 받은 seq 를 저장 데이터에 남겨 새로고침·재입장에서도 중복 지급을 막는다.
-      if(r.st==="won"&&S.flags.raidSeq!==r.seq){
-        S.flags.raidSeq=r.seq;
-        const N=r.N||1,base=60+20*N,first=(S.flags.raidWins|0)===0?RAID_FIRST_BONUS:0,k=raidTodayCount(),mult=raidMult(k),gain=Math.round(base*mult)+first;
+      const okR=raidRewardOk(r);
+      if(r.st==="won"&&!okR&&S.flags.raidSeq!==r.seq)toast("⚠ 레이드 결과 데이터가 이상해서 보상을 받지 않았어요.",4200);
+      if(r.st==="won"&&okR&&S.flags.raidSeq!==r.seq){
+        S.flags.raidSeq=r.seq;S.flags.raidAt=NET.be.now();
+        if(!Number.isFinite(S.coins))S.coins=0;
+        const N=r.N,base=60+20*N,first=(S.flags.raidWins|0)===0?RAID_FIRST_BONUS:0,k=raidTodayCount(),mult=raidMult(k),gain=Math.round(base*mult)+first;
         const secs=r.start?Math.max(1,Math.round((r.t0-r.start)/1000)):0,key="n"+N,best=S.flags.raidBest||{},prev=best[key]||0,newBest=secs>0&&(!prev||secs<prev);
         S.coins+=gain;S.flags.raidWins=(S.flags.raidWins|0)+1;S.flags.raidDay=raidDayKey();S.flags.raidToday=k+1;
         if(newBest)S.flags.raidBest=Object.assign({},best,{[key]:secs});
@@ -2229,7 +2250,7 @@ function winRaid(){
   RD.add={u:0,a:0};RD.v3={n2:0,o2:0,he:0};
   openWin("🍲 폭주하는 솥 골렘 (레이드)",raidBuild,680);curWin.raid=true;
 }
-function memList(r){return rMem(r).map(u=>`${r.mem[u].n}${u===NET.uid?"(나)":""}`).join(", ")}
+function memList(r){return rMem(r).map(u=>`${rname(r,u)}${u===NET.uid?"(나)":""}`).join(", ")}
 function raidBuild(b){
   const r=NET.raid,live=[];RD.liveFn=()=>live.forEach(f=>f());
   if(!NET.ok){b.append(el("div","empty","광장에 연결 중이에요…"));return}
@@ -2253,12 +2274,12 @@ function raidBuild(b){
     return st==="p2"?`안정화까지 약 ${Math.max(0,Math.ceil(P2_TIME-RD.stab))}초`:`남은 시간 ${Math.max(0,Math.ceil(lim-(NET.be.now()-NET.raid.t0)/1000))}초`};
   if(r.st==="won"||r.st==="lost"){
     head.textContent=r.st==="won"?"🎉 레이드 클리어!":"💥 레이드 실패";
-    b.append(el("div","note",r.why||""));
+    b.append(el("div","note",esc(String(r.why||"").slice(0,200))));
     if(r.st==="won"){
       const w=RD.reward&&RD.reward.seq===r.seq?RD.reward:null;
       b.append(el("div","note",`참가자: ${memList(r)}`+(w
         ?`<br>🪙 보상 <b>${w.gain}</b> 코인 = 기본 ${w.base} × ${Math.round(w.mult*100)}%${w.first?` + 첫 클리어 ${w.first}`:""} (오늘 ${w.k}번째)${w.secs?`<br>⏱ 이번 기록 ${fmtSecs(w.secs)}${w.newBest?` 🏆 <b>새 기록!</b>${w.prev?` (이전 ${fmtSecs(w.prev)})`:""}`:w.prev?` · 최단 ${fmtSecs(w.prev)}`:""}`:""}`
-        :`<br>보상은 참가자에게만 지급돼요(기본 🪙 ${60+20*(r.N||1)}, 같은 날 반복하면 줄어요).`)));
+        :`<br>보상은 참가자에게만 지급돼요(기본 🪙 ${60+20*((r.N|0)||1)}, 같은 날 반복하면 줄어요).`)));
       if(w)b.append(el("div","note",raidRecordHtml()));
     }
     else b.append(el("div","note","원인을 되짚어 보고 다시 도전해 봐요. 몇 초 뒤 솥이 식으면 새 레이드를 모집할 수 있어요."));
@@ -2288,7 +2309,7 @@ function raidBuild(b){
         NET.be.set(`${raidPath()}/p1/${NET.uid}`,{u:(my.u|0)+u,a:(my.a|0)+a});RD.add={u:0,a:0};refreshWin()};
       b.append(row,row2,go,el("div","note",have("sugar")+have("salt")===0?"재료가 없어요! 광장의 🎁 재료 상자나 섬의 사탕수수·소금 바위에서 구해 오세요.":"소금은 같은 스푼 수라도 입자가 2배라서 증기 압력을 더 많이 낮춰요."));
     }
-    const rows=Object.keys(r.p1||{}).map(u=>`<tr><td>${(r.mem&&r.mem[u]&&r.mem[u].n)||"?"}</td><td>${r.p1[u].u|0}</td><td>${r.p1[u].a|0}</td></tr>`).join("");
+    const rows=Object.keys(r.p1||{}).map(u=>`<tr><td>${rname(r,u)}</td><td>${r.p1[u].u|0}</td><td>${r.p1[u].a|0}</td></tr>`).join("");
     if(rows)b.append(el("div","",`<table><tr><th>이름</th><th>설탕</th><th>소금</th></tr>${rows}</table>`));
   }else if(r.st==="p2"){
     head.textContent="② 과열 제어 — 끓어 넘침을 막아라";
@@ -2325,7 +2346,7 @@ function raidBuild(b){
       live.push(()=>{const ps=pumpState(NET.raid,NET.uid,NET.be.now());pb.classList.toggle("dis",!ps.ready);pi.textContent=ps.on?`가동 중 ${Math.ceil(ps.left)}초 · 열원 온도 −${PUMP_COOL} ℃`:ps.ready?"준비됨 (8초 가동 · 6초 재충전)":`재충전 ${Math.ceil(ps.wait)}초`});
     }
     const mv=el("div","note");b.append(mv);
-    live.push(()=>{const R_=NET.raid,nw=NET.be.now();mv.innerHTML="장치 현황: "+rMem(R_).map(u=>{const ps=pumpState(R_,u,nw);return`${R_.mem[u].n} 밸브 ${(R_.p2&&R_.p2[u])|0}칸${ps.on?" ❄":""}${memAlive(u,nw)?"":" (연결 끊김·제외)"}`}).join(" · ")});
+    live.push(()=>{const R_=NET.raid,nw=NET.be.now();mv.innerHTML="장치 현황: "+rMem(R_).map(u=>{const ps=pumpState(R_,u,nw);return`${rname(R_,u)} 밸브 ${(R_.p2&&R_.p2[u])|0}칸${ps.on?" ❄":""}${memAlive(u,nw)?"":" (연결 끊김·제외)"}`}).join(" · ")});
   }else if(r.st==="p3"&&r.p3&&r.p3.need){
     head.textContent="③ 가스 과압 — 분압을 맞춰라";
     const need=r.p3.need;
@@ -2361,8 +2382,8 @@ function raidBuild(b){
     live.push(()=>{
       const R_=NET.raid;if(!R_.p3)return;
       const pr=p3Props(R_),{use,proj}=p3Totals(R_),nd=R_.p3.need,over=G3.some(g_=>proj[g_]>nd[g_]),exact=G3.every(g_=>proj[g_]===nd[g_]);
-      const props=Object.keys(pr).map(u=>`${(R_.mem&&R_.mem[u]&&R_.mem[u].n)||"?"}: N₂${pr[u].n2} O₂${pr[u].o2} He${pr[u].he}`);
-      hv.innerHTML="팀원 보유 캡슐: "+rMem(R_).map(u=>{const s=(R_.p3.sup&&R_.p3.sup[u])||{},w=(R_.p3.use&&R_.p3.use[u])||{};return`${R_.mem[u].n} N₂${(s.n2|0)-(w.n2|0)} O₂${(s.o2|0)-(w.o2|0)} He${(s.he|0)-(w.he|0)}`}).join(" · ")
+      const props=Object.keys(pr).map(u=>`${rname(R_,u)}: N₂${pr[u].n2|0} O₂${pr[u].o2} He${pr[u].he}`);
+      hv.innerHTML="팀원 보유 캡슐: "+rMem(R_).map(u=>{const s=(R_.p3.sup&&R_.p3.sup[u])||{},w=(R_.p3.use&&R_.p3.use[u])||{};return`${rname(R_,u)} N₂${(s.n2|0)-(w.n2|0)} O₂${(s.o2|0)-(w.o2|0)} He${(s.he|0)-(w.he|0)}`}).join(" · ")
         +`<br>📝 팀 제안: ${props.join(" · ")||"아직 없어요"}`
         +`<br>넣은 뒤 예상: N₂ ${proj.n2}/${nd.n2} · O₂ ${proj.o2}/${nd.o2} · He ${proj.he}/${nd.he} `
         +(over?"<b style='color:#c0392b'>⚠ 목표 초과! 이대로 확정하면 폭발해요</b>":exact?"<b style='color:#2e8b57'>✓ 정확히 맞아요</b>":"")
