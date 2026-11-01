@@ -129,6 +129,12 @@
   #bBag,#bMenu{width:60px;height:60px;border-radius:50%;background:rgba(255,251,234,.9);border:3px solid #9b6b43;color:#4a3326;font-size:22px;line-height:34px;text-align:center}
   #bBag small,#bMenu small{display:block;font-size:11px;line-height:12px;margin-top:-2px}
   #bBag{right:calc(max(16px,env(safe-area-inset-right)) + var(--act) + 22px);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 14px)}
+  /* 레이드 전투 전용 버튼: 구르기(전투 중), 장치 창(레이드 전투 중) */
+  #bRoll,#bDev{display:none;width:60px;height:60px;border-radius:50%;background:rgba(255,226,170,.92);border:3px solid #b8832a;color:#6a3a10;font-size:20px;line-height:34px;text-align:center}
+  #bRoll small,#bDev small{display:block;font-size:11px;line-height:12px;margin-top:-2px}
+  .btmode #bRoll,.btraid #bDev{display:block}
+  #bRoll{right:calc(max(16px,env(safe-area-inset-right)) + 8px);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 14px + var(--act) + 14px + 60px + 12px)}
+  #bDev{right:calc(max(16px,env(safe-area-inset-right)) + var(--act) + 22px);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 14px + 60px + 12px)}
   #bMenu{right:calc(max(16px,env(safe-area-inset-right)) + 8px);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 14px + var(--act) + 14px)}
   .landscape.ui-busy #pad,.landscape.ui-busy #bBag,.landscape.ui-busy #bMenu{opacity:0;pointer-events:none}
   .landscape #dlg{right:calc(var(--act) + 44px)}
@@ -176,6 +182,8 @@
     <div id="pad" class="ctl"><i data-d="U">▲</i><i data-d="D">▼</i><i data-d="L">◀</i><i data-d="R">▶</i><b id="padknob"></b></div>
     <div id="bAct" class="ctl">행동</div>
     <div id="bBag" class="ctl">🎒<small>가방</small></div>
+    <div id="bRoll" class="ctl">💨<small>구르기</small></div>
+    <div id="bDev" class="ctl">🍲<small>장치</small></div>
     <div id="bMenu" class="ctl">☰<small>메뉴</small></div>
   </div>
   <div id="mobcap"></div>
@@ -1510,7 +1518,8 @@ function render(){
     if(r<255||gg<255||bb<255){g.globalCompositeOperation="multiply";g.fillStyle=`rgb(${r},${gg},${bb})`;g.fillRect(0,0,VW,VH);g.globalCompositeOperation="source-over"}}
   if(scene==="out"){drawLights();drawFireflies()}
   if(scene==="plaza")plazaRaidFx();
-  ctx.imageSmoothingEnabled=false;ctx.drawImage(wc,0,0,VW*SC,VH*SC);
+  {const sk=BT.on&&BT.shake>0&&!REDUCE?BT.shake/.18*5:0;   // 전투 중 피격·골렘 거품에 화면이 짧게 흔들린다
+    ctx.imageSmoothingEnabled=false;ctx.drawImage(wc,sk?Math.round((Math.random()-.5)*2*sk):0,sk?Math.round((Math.random()-.5)*2*sk):0,VW*SC,VH*SC)}
   // 라벨/프롬프트
   ctx.textAlign="center";ctx.font=`bold 13px ${FONT}`;ctx.lineJoin="round";
   for(const[lx,ly,t]of labels){const sx=(lx-cam.x)*SC,sy=(ly-cam.y)*SC;ctx.lineWidth=4;ctx.strokeStyle="rgba(60,40,25,.85)";ctx.strokeText(t,sx,sy);ctx.fillStyle="#fff7d6";ctx.fillText(t,sx,sy)}
@@ -1814,7 +1823,9 @@ function plazaUpdate(dt){
 //    모든 참가자가 같은 몬스터를 본다. 처치한 몬스터는 서버(raid/bt/k)에 적어 다른 사람 화면에서도 사라진다.
 //  - 장치 창은 R 로 열고 닫는다(창이 열려 있는 동안은 맞지 않는다). 전투는 레이드의 승패(화학 판정)를 바꾸지 않는다: 혼자서도 클리어할 수 있다.
 //  - 드롭: 1단계 용질(설탕·소금)은 보관함으로, 3단계 기체 캡슐은 내 보유 캡슐로 더해진다(레이드마다 개수 제한).
-const BT={enabled:/[?&]battle=1\b/.test(location.search),on:false,raidMode:false,rseq:0,stage:"",nj:0,nh:0,nv:0,capSol:0,capGas:0,dnAt:0,rvT:{},winOpen:false,
+// BT_DEFAULT_ON 을 true 로 바꾸면 기본으로 켜지고 ?battle=0 으로 끌 수 있다(지금은 ?battle=1 로만 켜진다).
+const BT_DEFAULT_ON=false;
+const BT={enabled:BT_DEFAULT_ON?!/[?&]battle=0\b/.test(location.search):/[?&]battle=1\b/.test(location.search),on:false,raidMode:false,rseq:0,stage:"",nj:0,nh:0,nv:0,capSol:0,capGas:0,dnAt:0,rvT:{},winOpen:false,
   t:0,seed:1,mons:[],bolts:[],fx:[],shots:[],haz:[],drops:[],kills:0,gi:0,hp:3,maxHp:3,invul:0,roll:0,rollCd:0,rdx:0,rdy:1,atkCd:0,down:0,shake:0,flash:0,
   wave:0,wState:"break",wT:0,q:[],qi:0,spT:0,hzT:0,hzI:0,vlT:0,sol:0,gas:0,banner:"",bannerT:0,win:false};
 const BT_GOLEM=[24*16,12.5*16];
@@ -1960,8 +1971,11 @@ function btRevive(r,dt){
     else delete BT.rvT[u];
   }
 }
+// 터치 화면의 전투 버튼(구르기·장치 창)은 전투 중에만 보인다
+let btCls="";
+function btClasses(){const c=(BT.on?"a":"")+(BT.raidMode?"b":"");if(c===btCls)return;btCls=c;const cl=document.documentElement.classList;cl.toggle("btmode",BT.on);cl.toggle("btraid",BT.on&&BT.raidMode)}
 function btUpdate(dt){
-  const rm=btRaidSync();
+  const rm=btRaidSync();btClasses();
   if(!BT.on)return;
   if(scene!=="plaza"){BT.on=false;BT.raidMode=false;return}
   // 연습 전투는 창·대화가 열리면 멈추지만, 레이드 전투는 서버 시각으로 계속 흐른다(창이 열려 있는 동안은 안전)
@@ -2116,6 +2130,9 @@ function btDraw(dr){
 function btOverlay(){
   if(!BT.on)return;
   const W=960,H=600;
+  // 모바일(세로)은 캔버스를 가운데 기준으로 잘라 보여 주므로, 표시를 화면 가장자리가 아니라 내 캐릭터 기준 위치에 그린다.
+  const mobUI=document.documentElement.classList.contains("mob"),cx=mobUI?(P.x-cam.x)*SC:W/2,py=(P.y-cam.y)*SC;
+  const yWave=mobUI?py-130:128,yBan=mobUI?py-92:172,yWin=mobUI?py-58:204,yDn=mobUI?py-30:300,yHeart=mobUI?py+118:516,yInfo=mobUI?py+142:538;
   if(BT.flash>0){const a=BT.flash/.25*.28,gr=ctx.createRadialGradient(W/2,H/2,H*.35,W/2,H/2,H*.85);gr.addColorStop(0,"rgba(255,60,40,0)");gr.addColorStop(1,`rgba(255,60,40,${a.toFixed(2)})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H)}
   ctx.textAlign="center";ctx.font=`bold 15px ${FONT}`;ctx.lineJoin="round";
   for(const f of BT.fx){if(!f.txt)continue;const sx=(f.x-cam.x)*SC,sy=(f.y-cam.y)*SC-f.t*40;ctx.globalAlpha=Math.max(0,1-f.t/.9);ctx.lineWidth=4;ctx.strokeStyle="rgba(40,25,20,.9)";ctx.strokeText(f.txt,sx,sy);ctx.fillStyle=f.col;ctx.fillText(f.txt,sx,sy);ctx.globalAlpha=1}
@@ -2124,16 +2141,19 @@ function btOverlay(){
   let wt;
   if(BT.raidMode){const sh=BT.winOpen?" · 🛡 장치 창 사용 중(안전)":"";wt=`⚔ ${(BT_STG[BT.stage]||{}).name||""} · 남은 적 ${BT.mons.length} · R 장치 창${sh}`}
   else{const left=BT.win?0:BT.mons.length+Math.max(0,BT.q.length-BT.qi);wt=BT.win?"🍲 레이드 전투 승리!":BT.wState==="break"&&BT.wave===0?"곧 시작해요…":`⚔ 웨이브 ${BT.wave}/${BT_WAVES.length}${BT.wState==="fight"?` · 남은 적 ${left}`:""}`}
-  ctx.strokeText(wt,W/2,128);ctx.fillText(wt,W/2,128);
-  if(BT.bannerT>0){ctx.globalAlpha=Math.min(1,BT.bannerT/.5);ctx.font=`bold 30px ${FONT}`;ctx.lineWidth=6;ctx.strokeText(BT.banner,W/2,172);ctx.fillStyle="#ffe08a";ctx.fillText(BT.banner,W/2,172);ctx.globalAlpha=1}
-  if(BT.win&&!BT.raidMode){ctx.font=`bold 16px ${FONT}`;ctx.fillStyle="#fff7d6";ctx.lineWidth=4;const l=`처치 ${BT.kills}마리 · ${Math.floor(BT.t)}초 · 용질 ${BT.sol} · 기체 캡슐 ${BT.gas}   (B 로 끝내기)`;ctx.strokeText(l,W/2,204);ctx.fillText(l,W/2,204)}
-  if(BT.raidMode&&BT.down>0){ctx.font=`bold 20px ${FONT}`;ctx.fillStyle="#ffe08a";ctx.lineWidth=5;const l="쓰러졌어요… 팀원이 가까이 서면 일어나요";ctx.strokeText(l,W/2,300);ctx.fillText(l,W/2,300)}
+  ctx.strokeText(wt,cx,yWave);ctx.fillText(wt,cx,yWave);
+  if(BT.bannerT>0){ctx.globalAlpha=Math.min(1,BT.bannerT/.5);ctx.font=`bold ${mobUI?24:30}px ${FONT}`;ctx.lineWidth=6;ctx.strokeText(BT.banner,cx,yBan);ctx.fillStyle="#ffe08a";ctx.fillText(BT.banner,cx,yBan);ctx.globalAlpha=1}
+  if(BT.win&&!BT.raidMode){ctx.font=`bold 16px ${FONT}`;ctx.fillStyle="#fff7d6";ctx.lineWidth=4;const l=`처치 ${BT.kills}마리 · ${Math.floor(BT.t)}초 · 용질 ${BT.sol} · 기체 캡슐 ${BT.gas}   (B 로 끝내기)`;ctx.strokeText(l,cx,yWin);ctx.fillText(l,cx,yWin)}
+  if(BT.raidMode&&BT.down>0){ctx.font=`bold 20px ${FONT}`;ctx.fillStyle="#ffe08a";ctx.lineWidth=5;const l="쓰러졌어요… 팀원이 가까이 서면 일어나요";ctx.strokeText(l,cx,yDn);ctx.fillText(l,cx,yDn)}
   // 체력(하트), 구르기 준비, 처치·드롭
   ctx.textAlign="left";ctx.font=`bold 22px ${FONT}`;
-  for(let i=0;i<BT.maxHp;i++){ctx.fillStyle=i<BT.hp?"#ff5a6a":"rgba(60,40,50,.55)";ctx.strokeStyle="rgba(40,25,20,.9)";ctx.lineWidth=3;ctx.strokeText("♥",24+i*28,516);ctx.fillText("♥",24+i*28,516)}
-  ctx.font=`bold 14px ${FONT}`;const ready=BT.rollCd<=0&&BT.down<=0;
+  const hx=mobUI?cx-BT.maxHp*14:24;
+  for(let i=0;i<BT.maxHp;i++){ctx.fillStyle=i<BT.hp?"#ff5a6a":"rgba(60,40,50,.55)";ctx.strokeStyle="rgba(40,25,20,.9)";ctx.lineWidth=3;ctx.strokeText("♥",hx+i*28,yHeart);ctx.fillText("♥",hx+i*28,yHeart)}
+  ctx.font=`bold ${mobUI?13:14}px ${FONT}`;const ready=BT.rollCd<=0&&BT.down<=0;
   ctx.fillStyle=ready?"#8ee08e":"#c9c0a8";ctx.strokeStyle="rgba(40,25,20,.9)";ctx.lineWidth=3;
-  const tx=`구르기 ${ready?"준비됨":Math.ceil(BT.rollCd*10)/10+"초"}  ·  처치 ${BT.kills}  ·  🧂 용질 ${BT.sol}  ·  💨 캡슐 ${BT.gas}  ·  ${Math.floor(BT.t)}초`;ctx.strokeText(tx,24,538);ctx.fillText(tx,24,538);
+  const tx=mobUI?`처치 ${BT.kills} · 🧂 ${BT.sol} · 💨 ${BT.gas} · ${ready?"구르기 준비":Math.ceil(BT.rollCd*10)/10+"초"}`:`구르기 ${ready?"준비됨":Math.ceil(BT.rollCd*10)/10+"초"}  ·  처치 ${BT.kills}  ·  🧂 용질 ${BT.sol}  ·  💨 캡슐 ${BT.gas}  ·  ${Math.floor(BT.t)}초`;
+  if(mobUI)ctx.textAlign="center";
+  ctx.strokeText(tx,mobUI?cx:24,yInfo);ctx.fillText(tx,mobUI?cx:24,yInfo);
   ctx.textAlign="center";
 }
 function updatePlazaHud(){
@@ -2181,7 +2201,7 @@ function enterPlaza(){
   fadeTo(()=>{
     lastOut=[54*16,24*16+4];buildPlazaOnce();
     scene="plaza";CUR=null;P.x=PLZ.spawn[0];P.y=PLZ.spawn[1];P.dir=3;camSnap();
-    $("hint").textContent=HINT_PLAZA;netConnect();
+    $("hint").textContent=HINT_PLAZA+(BT.enabled?" · B 연습 전투 · Space 구르기 · R 장치 창":"");netConnect();
   });
 }
 function exitPlaza(){
@@ -2567,11 +2587,11 @@ function raidOnState(r){
       if(r.st==="won"&&okR&&S.flags.raidSeq!==r.seq){
         S.flags.raidSeq=r.seq;S.flags.raidAt=NET.be.now();
         if(!Number.isFinite(S.coins))S.coins=0;
-        const N=r.N,base=60+20*N,first=(S.flags.raidWins|0)===0?RAID_FIRST_BONUS:0,k=raidTodayCount(),mult=raidMult(k),gain=Math.round(base*mult)+first;
+        const N=r.N,base=60+20*N,first=(S.flags.raidWins|0)===0?RAID_FIRST_BONUS:0,k=raidTodayCount(),mult=raidMult(k),combat=BT.rseq===r.seq?Math.round(Math.min(20,Math.floor(BT.kills/3))*mult):0,gain=Math.round(base*mult)+first+combat;   // 전투 보너스: 처치 3마리당 1코인(최대 20), 반복 보상과 같이 줄어든다
         const secs=r.start?Math.max(1,Math.round((r.t0-r.start)/1000)):0,key="n"+N,best=S.flags.raidBest||{},prev=best[key]||0,newBest=secs>0&&(!prev||secs<prev);
         S.coins+=gain;S.flags.raidWins=(S.flags.raidWins|0)+1;S.flags.raidDay=raidDayKey();S.flags.raidToday=k+1;
         if(newBest)S.flags.raidBest=Object.assign({},best,{[key]:secs});
-        RD.reward={seq:r.seq,gain,base,first,mult,k:k+1,secs,newBest,prev};
+        RD.reward={seq:r.seq,gain,base,first,combat,mult,k:k+1,secs,newBest,prev};
         toast(`🎉 레이드 클리어! 🪙 ${gain} 코인${first?` (첫 클리어 +${first})`:""}${mult<1?` · 오늘 ${k+1}번째라 ${Math.round(mult*100)}%`:""}${secs?`\n⏱ ${fmtSecs(secs)}${newBest?" 🏆 새 기록!":""}`:""}`,6000);
         save();
       }
@@ -2618,7 +2638,7 @@ function raidBuild(b){
     if(r.st==="won"){
       const w=RD.reward&&RD.reward.seq===r.seq?RD.reward:null;
       b.append(el("div","note",`참가자: ${memList(r)}`+(w
-        ?`<br>🪙 보상 <b>${w.gain}</b> 코인 = 기본 ${w.base} × ${Math.round(w.mult*100)}%${w.first?` + 첫 클리어 ${w.first}`:""} (오늘 ${w.k}번째)${w.secs?`<br>⏱ 이번 기록 ${fmtSecs(w.secs)}${w.newBest?` 🏆 <b>새 기록!</b>${w.prev?` (이전 ${fmtSecs(w.prev)})`:""}`:w.prev?` · 최단 ${fmtSecs(w.prev)}`:""}`:""}`
+        ?`<br>🪙 보상 <b>${w.gain}</b> 코인 = 기본 ${w.base} × ${Math.round(w.mult*100)}%${w.first?` + 첫 클리어 ${w.first}`:""}${w.combat?` + 전투 ${w.combat}`:""} (오늘 ${w.k}번째)${w.secs?`<br>⏱ 이번 기록 ${fmtSecs(w.secs)}${w.newBest?` 🏆 <b>새 기록!</b>${w.prev?` (이전 ${fmtSecs(w.prev)})`:""}`:w.prev?` · 최단 ${fmtSecs(w.prev)}`:""}`:""}`
         :`<br>보상은 참가자에게만 지급돼요(기본 🪙 ${60+20*((r.N|0)||1)}, 같은 날 반복하면 줄어요).`)));
       if(w)b.append(el("div","note",raidRecordHtml()));
     }
@@ -3063,7 +3083,7 @@ requestAnimationFrame(frame);
 (()=>{
 "use strict";
 const root=document.documentElement,game=document.getElementById("game"),cv=document.getElementById("cv");
-const pad=document.getElementById("pad"),knob=document.getElementById("padknob"),bAct=document.getElementById("bAct"),bBag=document.getElementById("bBag"),bMenu=document.getElementById("bMenu");
+const pad=document.getElementById("pad"),knob=document.getElementById("padknob"),bAct=document.getElementById("bAct"),bBag=document.getElementById("bBag"),bMenu=document.getElementById("bMenu"),bRoll=document.getElementById("bRoll"),bDev=document.getElementById("bDev");
 const cap=document.getElementById("mobcap"),menu=document.getElementById("mobmenu"),force=new URLSearchParams(location.search).get("mobile");
 const st={mob:false,ctl:false,z:1,aw:0,ah:0};let lastT="",lastCap="";
 const kb={};
@@ -3103,6 +3123,8 @@ function bind(el,down,up){
 const relAct=bind(bAct,()=>fire("keydown","KeyE"),()=>fire("keyup","KeyE"));
 const relBag=bind(bBag,()=>{fire("keydown","KeyI");fire("keyup","KeyI")});
 const relMenu=bind(bMenu,()=>menu.classList.toggle("open"));
+const relRoll=bind(bRoll,()=>{fire("keydown","Space");fire("keyup","Space")});   // 전투 중 Space = 구르기
+const relDev=bind(bDev,()=>{fire("keydown","KeyR");fire("keyup","KeyR")});      // 레이드 전투 중 R = 장치 창
 menu.addEventListener("click",e=>{
   const b=e.target.closest("[data-m]");if(!b)return;const m=b.dataset.m;
   if(m==="close"){}
@@ -3123,7 +3145,7 @@ menu.addEventListener("click",e=>{
   dlgEl.addEventListener("click",e=>{if(!st.mob)return;if(Date.now()-lastTouch<600)return;if(e.target.closest(".opt"))return;advance()});
 }
 // ---- 입력이 남지 않도록 하는 안전장치
-function releaseAll(){padRelease();relAct();relBag();relMenu()}
+function releaseAll(){padRelease();relAct();relBag();relMenu();relRoll();relDev()}
 addEventListener("blur",releaseAll);addEventListener("pagehide",releaseAll);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)releaseAll()});
 addEventListener("pointerup",e=>{if(e.pointerId===padId)padRelease()},true);
