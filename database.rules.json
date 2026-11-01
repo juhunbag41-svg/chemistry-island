@@ -28,6 +28,12 @@
         "start": { ".validate": "newData.isNumber() && newData.val() > 0" },
         "N": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 8" },
         "why": { ".validate": "newData.isString() && newData.val().length <= 200 && !newData.val().matches(/[<>&]/)" },
+        "bt": {
+          "k": { "$key": { ".validate": "$key.matches(/^p[123][0-9]{1,3}$/) && newData.isString() && newData.val().length <= 60" } },
+          "dn": { "$pid": { ".validate": "newData.isNumber()" } },
+          "rv": { "$pid": { ".validate": "newData.isNumber()" } },
+          "$other": { ".validate": false }
+        },
         "mem": { "$pid": {
           "n": { ".validate": "newData.isString() && newData.val().length <= 8 && !newData.val().matches(/[<>&\"'`]/)" },
           "$other": { ".validate": false }
