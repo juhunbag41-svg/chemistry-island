@@ -849,6 +849,7 @@ const DV=[[0,1],[-1,0],[1,0],[0,-1]];
 const keys={};
 function movePlayer(dt){
   let ax=(keys.ArrowRight||keys.KeyD?1:0)-(keys.ArrowLeft||keys.KeyA?1:0),ay=(keys.ArrowDown||keys.KeyS?1:0)-(keys.ArrowUp||keys.KeyW?1:0);
+  if(BT.on&&(BT.down>0||BT.roll>0)){P.moving=false;return}   // 쓰러졌거나 구르는 중에는 걷지 않는다
   P.moving=!!(ax||ay);
   if(!P.moving)return;
   if(ax&&ay){ax*=.7071;ay*=.7071}
@@ -1502,7 +1503,8 @@ function render(){
     for(const f of I.furn){if(f.k==="rug"){drawFurn(f);continue}dr.push([(f.ty+f.th)*16,()=>drawFurn(f)])}
     if(I.id==="shop")dr.push([KEEPER.y+1,()=>person(KEEPER.x,KEEPER.y,0,0,false,PAL_K,ANIM.k)]);
   }
-  dr.push([P.y+.5,()=>person(P.x,P.y,P.dir,P.fr,P.moving&&!busy(),palP(),ANIM.p)]);
+  dr.push([P.y+.5,()=>{if(BT.on&&BT.hp>0&&BT.invul>0&&BT.roll<=0&&Math.floor(time*14)%2)return;   // 피격 직후 깜빡임
+    person(P.x,P.y,P.dir,P.fr,P.moving&&!busy(),palP(),ANIM.p)}]);
   dr.sort((a,b)=>a[0]-b[0]);dr.forEach(d=>d[1]());
   {const c=dayTint(),m=scene==="out"||scene==="plaza"?1:.4,r=Math.round(255+(c[0]-255)*m),gg=Math.round(255+(c[1]-255)*m),bb=Math.round(255+(c[2]-255)*m);
     if(r<255||gg<255||bb<255){g.globalCompositeOperation="multiply";g.fillStyle=`rgb(${r},${gg},${bb})`;g.fillRect(0,0,VW,VH);g.globalCompositeOperation="source-over"}}
@@ -1778,9 +1780,11 @@ function plazaRender(fr,dr){
   g.drawImage(PLZ.ground,gx,gy,VW,VH,0,0,VW,VH);
   for(const o of PLZ.objs){const px=o.tx*16,py=o.ty*16;if(px+o.tw*16+24<cam.x||px-24>cam.x+VW||py+o.th*16+16<cam.y||py-40>cam.y+VH)continue;dr.push([o.sy,()=>drawObj(o,fr)])}
   for(const uid in NET.remote){const r=NET.remote[uid];dr.push([r.y,()=>{person(r.x,r.y,r.d,0,false,remotePal(r),r.anim);labels.push([r.x,r.y-33,r.n])}])}
+  btDraw(dr);
   labels.push([P.x,P.y-33,S.flags.nick||"나"]);
 }
 function plazaOverlay(){
+  btOverlay();
   const draw=(x,y,emo)=>{
     const age=time-emo.t;if(age>3.2)return;
     const sx=(x-cam.x)*SC,sy=(y-cam.y-46)*SC-Math.min(age,.4)*24;
@@ -1800,8 +1804,112 @@ function plazaUpdate(dt){
   }
   if(PLZ.dA){const typing=!!dl&&dl.shown<dl.text.length&&dl.who===DN;animChar(PLZ.dA,27*16+8,21*16+12,0,dt,7,typing,["adjust"])}
   if(NET.ok){netSend(dt);raidTick(dt)}
-  raidFxUpdate(dt);
+  raidFxUpdate(dt);btUpdate(dt);
   PLZ.hud-=dt;if(PLZ.hud<=0){PLZ.hud=.4;updatePlazaHud()}
+}
+// ---------- 레이드 액션 전투(1단계: 혼자 시험하는 연습 전투) ----------
+// 켜는 법: 주소 뒤에 ?battle=1 을 붙이고 광장에서 B. 아직 레이드(서버 데이터)와 연결되지 않았고 모든 계산은 내 화면 안에서만 한다.
+// 몬스터는 (시드, 번호)로 출현 시각과 위치가 정해지므로 나중에 모든 접속자가 같은 몬스터를 계산할 수 있게 해 둔 구조다.
+const BT={enabled:/[?&]battle=1\b/.test(location.search),on:false,t:0,seed:1,mons:[],bolts:[],fx:[],kills:0,nextI:0,hp:3,maxHp:3,invul:0,roll:0,rollCd:0,rdx:0,rdy:1,atkCd:0,down:0,shake:0,flash:0};
+const BT_GOLEM=[24*16,12.5*16],BT_CFG={spawnEvery:1.5,firstAt:1.2,maxAlive:14,monHp:3,monSpd:30,monR:6,rollT:.26,rollSpd:210,rollCd:.9,boltSpd:230,boltLife:.9,atkEvery:.5,atkRange:110,dmg:1,hurtInvul:1.1,downT:4};
+function btSpawnPos(i){   // i 번째 몬스터의 출현 위치(시드 고정). 골렘 둘레 130~190px 의 땅 위.
+  const rnd=mulberry(BT.seed*7919+i*104729);
+  for(let k=0;k<10;k++){const a=rnd()*6.2832,r=130+rnd()*60,x=BT_GOLEM[0]+Math.cos(a)*r,y=BT_GOLEM[1]+Math.sin(a)*r*.75;
+    if(!blockedPlaza(Math.floor(x/16),Math.floor(y/16)))return[x,y]}
+  return[BT_GOLEM[0],BT_GOLEM[1]+70];
+}
+function btToggle(){
+  if(!BT.enabled||scene!=="plaza"||busy())return;
+  if(BT.on){BT.on=false;toast("연습 전투를 끝냈어요.");return}
+  Object.assign(BT,{on:true,t:0,seed:(Date.now()&0xffff)|1,mons:[],bolts:[],fx:[],kills:0,nextI:0,hp:BT.maxHp,invul:0,roll:0,rollCd:0,atkCd:0,down:0,shake:0,flash:0});
+  toast("⚔ 연습 전투 시작! 이동 WASD · 구르기 Space(잠깐 무적) · 자동 공격 · B 로 끝내기",4200);
+}
+function btHurt(amt){
+  if(BT.invul>0||BT.roll>0||BT.down>0)return;
+  BT.hp=Math.max(0,BT.hp-amt);BT.invul=BT_CFG.hurtInvul;BT.shake=.18;BT.flash=.25;
+  BT.fx.push({x:P.x,y:P.y-18,t:0,txt:"-"+amt,col:"#ff5a4a"});
+  if(BT.hp<=0){BT.down=BT_CFG.downT;P.moving=false;BT.fx.push({x:P.x,y:P.y-30,t:0,txt:"쓰러졌어요!",col:"#ffe08a"})}
+}
+function btRoll(){
+  if(!BT.on||BT.down>0||BT.roll>0||BT.rollCd>0||busy())return;
+  let ax=(keys.ArrowRight||keys.KeyD?1:0)-(keys.ArrowLeft||keys.KeyA?1:0),ay=(keys.ArrowDown||keys.KeyS?1:0)-(keys.ArrowUp||keys.KeyW?1:0);
+  if(!ax&&!ay){const d=DV[P.dir]||[0,1];ax=d[0];ay=d[1]}
+  const L=Math.hypot(ax,ay)||1;BT.rdx=ax/L;BT.rdy=ay/L;BT.roll=BT_CFG.rollT;BT.rollCd=BT_CFG.rollCd;
+  for(let i=0;i<5;i++)BT.fx.push({x:P.x-BT.rdx*i*3,y:P.y-2,t:0,dust:1});
+}
+function btUpdate(dt){
+  if(!BT.on)return;
+  if(scene!=="plaza"){BT.on=false;return}
+  if(busy())return;   // 창·대화가 열려 있으면 멈춘다
+  const C=BT_CFG;BT.t+=dt;
+  BT.invul=Math.max(0,BT.invul-dt);BT.rollCd=Math.max(0,BT.rollCd-dt);BT.atkCd-=dt;BT.shake=Math.max(0,BT.shake-dt);BT.flash=Math.max(0,BT.flash-dt);
+  // 구르기: 짧게 빠르게 이동(벽은 통과 못함)
+  if(BT.roll>0){
+    const s=C.rollSpd*dt;let nx=P.x+BT.rdx*s;if(!boxHit(nx,P.y))P.x=nx;let ny=P.y+BT.rdy*s;if(!boxHit(P.x,ny))P.y=ny;
+    BT.roll-=dt;if(Math.random()<.5)BT.fx.push({x:P.x,y:P.y-1,t:0,dust:1});
+  }
+  // 쓰러짐: 잠시 뒤 체력 2로 일어난다(1단계는 혼자라 스스로 일어남. 3단계에서 팀원이 일으켜 주는 방식으로 바뀜)
+  if(BT.down>0){BT.down-=dt;if(BT.down<=0){BT.hp=2;BT.invul=2;BT.fx.push({x:P.x,y:P.y-26,t:0,txt:"다시 일어났다!",col:"#8ee08e"})}}
+  // 출현
+  while(BT.nextI<(BT.t-C.firstAt)/C.spawnEvery+1&&C.firstAt+BT.nextI*C.spawnEvery<=BT.t){
+    if(BT.mons.length<C.maxAlive){const[x,y]=btSpawnPos(BT.nextI);BT.mons.push({id:BT.nextI,x,y,hp:C.monHp,hit:0,ph:BT.nextI*1.7})}
+    BT.nextI++;
+  }
+  // 자동 공격: 가장 가까운 몬스터에게 거품탄
+  if(BT.down<=0&&BT.atkCd<=0){
+    let best=null,bd=C.atkRange;for(const m of BT.mons){const d=Math.hypot(m.x-P.x,m.y-P.y);if(d<bd){bd=d;best=m}}
+    if(best){const a=Math.atan2(best.y-(P.y-6),best.x-P.x);BT.bolts.push({x:P.x,y:P.y-6,vx:Math.cos(a)*C.boltSpd,vy:Math.sin(a)*C.boltSpd,life:C.boltLife});BT.atkCd=C.atkEvery;P.dir=Math.abs(best.x-P.x)>=Math.abs(best.y-P.y)?(best.x>P.x?2:1):(best.y>P.y?0:3)}
+  }
+  // 거품탄
+  for(let i=BT.bolts.length-1;i>=0;i--){
+    const b=BT.bolts[i];b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;let gone=b.life<=0||blockedPlaza(Math.floor(b.x/16),Math.floor(b.y/16));
+    if(!gone)for(const m of BT.mons){if(Math.hypot(m.x-b.x,m.y-(b.y+4))<9){m.hp-=C.dmg;m.hit=.15;BT.fx.push({x:m.x,y:m.y-10,t:0,txt:String(C.dmg),col:"#fff7d6"});gone=true;break}}
+    if(gone)BT.bolts.splice(i,1);
+  }
+  // 몬스터: 플레이어 쪽으로 이동, 서로 밀어냄, 닿으면 피해
+  for(let i=BT.mons.length-1;i>=0;i--){
+    const m=BT.mons[i];m.hit=Math.max(0,m.hit-dt);
+    if(m.hp<=0){BT.kills++;for(let k=0;k<7;k++)BT.fx.push({x:m.x,y:m.y-4,t:0,vx:(Math.random()-.5)*60,vy:-20-Math.random()*40,pop:1});BT.mons.splice(i,1);continue}
+    if(BT.down>0)continue;
+    const dx=P.x-m.x,dy=P.y-m.y,d=Math.hypot(dx,dy)||1;let vx=dx/d*C.monSpd,vy=dy/d*C.monSpd;
+    for(const o of BT.mons){if(o===m)continue;const ox=m.x-o.x,oy=m.y-o.y,od=Math.hypot(ox,oy);if(od>0&&od<10){vx+=ox/od*22;vy+=oy/od*22}}
+    let nx=m.x+vx*dt,ny=m.y+vy*dt;
+    if(!blockedPlaza(Math.floor(nx/16),Math.floor(m.y/16)))m.x=nx;if(!blockedPlaza(Math.floor(m.x/16),Math.floor(ny/16)))m.y=ny;
+    if(d<C.monR+5)btHurt(1);
+  }
+  // 효과
+  for(let i=BT.fx.length-1;i>=0;i--){const f=BT.fx[i];f.t+=dt;if(f.pop){f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=120*dt}if(f.t>(f.txt?.9:f.dust?.35:.5))BT.fx.splice(i,1)}
+}
+function btDraw(dr){
+  if(!BT.on)return;
+  for(const m of BT.mons)dr.push([m.y,()=>{   // 증기 거품 몬스터
+    const bob=Math.round(Math.sin(time*6+m.ph)*1),x=Math.round(m.x),y=Math.round(m.y)+bob,hit=m.hit>0;
+    R(x-6,y-1,12,3,"rgba(0,0,0,.2)");   // 그림자
+    const body=hit?"#ffffff":"rgba(150,215,245,.92)",edge=hit?"#ffffff":"#4a8fc0";
+    R(x-4,y-10,8,1,edge);R(x-6,y-9,12,1,edge);R(x-7,y-8,14,6,edge);R(x-6,y-2,12,1,edge);R(x-4,y-1,8,1,edge);
+    R(x-3,y-9,6,1,body);R(x-5,y-8,10,6,body);R(x-3,y-2,6,1,body);
+    R(x-4,y-8,3,2,"rgba(255,255,255,.85)");   // 하이라이트
+    R(x-3,y-6,2,2,"#2a3a55");R(x+1,y-6,2,2,"#2a3a55");R(x-1,y-3,2,1,"#2a3a55");   // 눈·입
+    if(m.hp<BT_CFG.monHp){R(x-5,y-13,10,2,"rgba(0,0,0,.5)");R(x-5,y-13,Math.max(0,Math.round(10*m.hp/BT_CFG.monHp)),2,"#ff6a5a")}
+  }]);
+  dr.push([P.y+1,()=>{
+    for(const b of BT.bolts){R(b.x-1,b.y-1,3,3,"#e8fbff");R(b.x-b.vx*.02-1,b.y-b.vy*.02-1,2,2,"rgba(160,225,255,.7)")}
+    for(const f of BT.fx){if(f.dust)R(f.x,f.y-f.t*10,2,2,`rgba(255,255,255,${(.6-f.t*1.6).toFixed(2)})`);else if(f.pop)R(f.x,f.y,2,2,`rgba(170,225,255,${(1-f.t*2).toFixed(2)})`)}
+  }]);
+}
+function btOverlay(){
+  if(!BT.on)return;
+  const W=960,H=600;
+  if(BT.flash>0){const a=BT.flash/.25*.28,gr=ctx.createRadialGradient(W/2,H/2,H*.35,W/2,H/2,H*.85);gr.addColorStop(0,"rgba(255,60,40,0)");gr.addColorStop(1,`rgba(255,60,40,${a.toFixed(2)})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H)}
+  ctx.textAlign="center";ctx.font=`bold 15px ${FONT}`;ctx.lineJoin="round";
+  for(const f of BT.fx){if(!f.txt)continue;const sx=(f.x-cam.x)*SC,sy=(f.y-cam.y)*SC-f.t*40;ctx.globalAlpha=Math.max(0,1-f.t/.9);ctx.lineWidth=4;ctx.strokeStyle="rgba(40,25,20,.9)";ctx.strokeText(f.txt,sx,sy);ctx.fillStyle=f.col;ctx.fillText(f.txt,sx,sy);ctx.globalAlpha=1}
+  // 체력(하트), 구르기 준비, 처치 수
+  ctx.textAlign="left";ctx.font=`bold 22px ${FONT}`;
+  for(let i=0;i<BT.maxHp;i++){ctx.fillStyle=i<BT.hp?"#ff5a6a":"rgba(60,40,50,.55)";ctx.strokeStyle="rgba(40,25,20,.9)";ctx.lineWidth=3;ctx.strokeText("♥",24+i*28,516);ctx.fillText("♥",24+i*28,516)}
+  ctx.font=`bold 14px ${FONT}`;const ready=BT.rollCd<=0&&BT.down<=0;
+  ctx.fillStyle=ready?"#8ee08e":"#c9c0a8";ctx.strokeStyle="rgba(40,25,20,.9)";ctx.lineWidth=3;
+  const tx=`구르기 ${ready?"준비됨":Math.ceil(BT.rollCd*10)/10+"초"}  ·  처치 ${BT.kills}  ·  ${Math.floor(BT.t)}초`;ctx.strokeText(tx,24,538);ctx.fillText(tx,24,538);
+  ctx.textAlign="center";
 }
 function updatePlazaHud(){
   const np=$("netpill"),rh=$("raidhud");
@@ -1822,7 +1930,10 @@ function updatePlazaHud(){
 // 속도는 개인 섬과 같다(실시간 1초 = 게임 2분, 하루 12분). 광장에 있는 동안 개인 시계(S.min)는 멈춰 있다.
 const plazaMin=()=>(NET.be.now()/500)%1440;
 function gmin(){return scene==="plaza"&&NET.ok&&NET.be?plazaMin():S.min}
-function plazaKey(code){const m=/^Digit([1-8])$/.exec(code);if(m){plazaEmote(+m[1]);return true}return false}
+function plazaKey(code){
+  if(code==="KeyB"&&BT.enabled){btToggle();return true}
+  if(code==="Space"&&BT.on){btRoll();return true}   // 전투 중 Space 는 구르기(상호작용은 E)
+  const m=/^Digit([1-8])$/.exec(code);if(m){plazaEmote(+m[1]);return true}return false}
 function askNick(cb){
   openWin("🌐 광장 이름 정하기",b=>{
     b.append(el("div","note","광장에서 다른 플레이어에게 보이는 이름이에요. 한글·영문·숫자 8자까지. 본명 대신 별명을 추천해요."));
