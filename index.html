@@ -1807,20 +1807,32 @@ function plazaUpdate(dt){
   raidFxUpdate(dt);btUpdate(dt);
   PLZ.hud-=dt;if(PLZ.hud<=0){PLZ.hud=.4;updatePlazaHud()}
 }
-// ---------- 레이드 액션 전투(2단계: 웨이브·골렘 패턴·드롭, 혼자 시험하는 연습 전투) ----------
-// 켜는 법: 주소 뒤에 ?battle=1 을 붙이고 광장에서 B. 아직 레이드(서버 데이터)와 연결되지 않았고 모든 계산은 내 화면 안에서만 한다.
-// 몬스터는 (시드, 번호)로 출현 시각과 위치가 정해지므로 나중에 모든 접속자가 같은 몬스터를 계산할 수 있게 해 둔 구조다.
-const BT={enabled:/[?&]battle=1\b/.test(location.search),on:false,t:0,seed:1,mons:[],bolts:[],fx:[],shots:[],haz:[],drops:[],kills:0,gi:0,hp:3,maxHp:3,invul:0,roll:0,rollCd:0,rdx:0,rdy:1,atkCd:0,down:0,shake:0,flash:0,
+// ---------- 레이드 액션 전투(3단계: 레이드 1~3단계와 연결, 협동 동기화, 살려 주기) ----------
+// 켜는 법: 주소 뒤에 ?battle=1 을 붙인다. 이 주소가 아니면 아래 전투는 전혀 동작하지 않고 기존 레이드 그대로다.
+//  - 광장에서 B: 혼자 시험하는 연습 전투(서버와 무관, 웨이브 3개).
+//  - 레이드(1~3단계)에 참가 중이면 전투가 자동으로 시작된다. 몬스터·장판·거품은 레이드 시작 시각(서버 시각)과 레이드 번호(시드)로 정해지므로
+//    모든 참가자가 같은 몬스터를 본다. 처치한 몬스터는 서버(raid/bt/k)에 적어 다른 사람 화면에서도 사라진다.
+//  - 장치 창은 R 로 열고 닫는다(창이 열려 있는 동안은 맞지 않는다). 전투는 레이드의 승패(화학 판정)를 바꾸지 않는다: 혼자서도 클리어할 수 있다.
+//  - 드롭: 1단계 용질(설탕·소금)은 보관함으로, 3단계 기체 캡슐은 내 보유 캡슐로 더해진다(레이드마다 개수 제한).
+const BT={enabled:/[?&]battle=1\b/.test(location.search),on:false,raidMode:false,rseq:0,stage:"",nj:0,nh:0,nv:0,capSol:0,capGas:0,dnAt:0,rvT:{},winOpen:false,
+  t:0,seed:1,mons:[],bolts:[],fx:[],shots:[],haz:[],drops:[],kills:0,gi:0,hp:3,maxHp:3,invul:0,roll:0,rollCd:0,rdx:0,rdy:1,atkCd:0,down:0,shake:0,flash:0,
   wave:0,wState:"break",wT:0,q:[],qi:0,spT:0,hzT:0,hzI:0,vlT:0,sol:0,gas:0,banner:"",bannerT:0,win:false};
 const BT_GOLEM=[24*16,12.5*16];
-const BT_CFG={maxAlive:14,rollT:.26,rollSpd:210,rollCd:.9,boltSpd:230,boltLife:.9,atkEvery:.5,atkRange:110,dmg:1,hurtInvul:1.1,downT:4,breakT:3,hzWarn:.9,hzBurst:.25,hzR:26,shotSpd:70};
+const BT_CFG={maxAlive:14,rollT:.26,rollSpd:210,rollCd:.9,boltSpd:230,boltLife:.9,atkEvery:.5,atkRange:110,dmg:1,hurtInvul:1.1,downT:4,breakT:3,hzWarn:.9,hzBurst:.25,hzR:26,shotSpd:70,reviveT:1.2,reviveR:18,capSol:8,capGas:2};
 const BT_KIND={s:{hp:3,spd:30,r:6,name:"slime"},w:{hp:1,spd:62,r:4,name:"wisp"},e:{hp:9,spd:24,r:9,name:"elite"}};
-// 웨이브 구성(출현 순서, 간격 초, 골렘 장판 주기(0=없음), 골렘 거품 난사 주기(0=없음))
+// 연습 전투 웨이브 구성(출현 순서, 간격 초, 골렘 장판 주기(0=없음), 골렘 거품 난사 주기(0=없음))
 const BT_WAVES=[
   {q:"ssssssss",gap:1.3,hz:0,vl:0},
   {q:"swswswswswsw",gap:1.0,hz:5,vl:0},
-  {q:"sswswewswsweswsw".replace(/ /g,""),gap:1.0,hz:3.6,vl:8}
+  {q:"sswswewswsweswsw",gap:1.0,hz:3.6,vl:8}
 ];
+// 레이드 단계별 전투(출현 간격은 인원이 많을수록 짧아진다). hzFirst/hz: 첫 장판 시각과 주기(초), vl: 거품 난사 주기
+const BT_STG={
+  p1:{gap:3.2,first:2,mix:"ssws",hz:0,hzFirst:0,vl:0,name:"1단계 증기 방어막"},
+  p2:{gap:2.6,first:1.5,mix:"swsw",hz:4.5,hzFirst:3,vl:0,name:"2단계 과열 제어"},
+  p3:{gap:2.8,first:1.5,mix:"swsweswsw",hz:4,hzFirst:3,vl:9,name:"3단계 가스 과압"}
+};
+const BT_STG_NO={p1:1,p2:2,p3:3};
 function btSpawnPos(i){   // i 번째 몬스터의 출현 위치(시드 고정). 골렘 둘레 130~190px 의 땅 위.
   const rnd=mulberry(BT.seed*7919+i*104729);
   for(let k=0;k<10;k++){const a=rnd()*6.2832,r=130+rnd()*60,x=BT_GOLEM[0]+Math.cos(a)*r,y=BT_GOLEM[1]+Math.sin(a)*r*.75;
@@ -1828,19 +1840,34 @@ function btSpawnPos(i){   // i 번째 몬스터의 출현 위치(시드 고정).
   return[BT_GOLEM[0],BT_GOLEM[1]+70];
 }
 const btSay=(t,s=2.4)=>{BT.banner=t;BT.bannerT=s};
+function btReset(raid){
+  Object.assign(BT,{on:true,raidMode:!!raid,t:0,mons:[],bolts:[],fx:[],shots:[],haz:[],drops:[],kills:0,gi:0,hp:BT.maxHp,invul:0,roll:0,rollCd:0,atkCd:0,down:0,shake:0,flash:0,
+    wave:0,wState:"break",wT:1.5,q:[],qi:0,spT:0,hzT:0,hzI:0,vlT:0,sol:0,gas:0,banner:"",bannerT:0,win:false,stage:"",nj:0,nh:0,nv:0,capSol:0,capGas:0,dnAt:0,rvT:{},winOpen:false});
+}
 function btToggle(){
   if(!BT.enabled||scene!=="plaza"||busy())return;
+  if(BT.raidMode){toast("레이드 전투 중이에요. 장치 창은 R 키!");return}
   if(BT.on){BT.on=false;toast("연습 전투를 끝냈어요.");return}
-  Object.assign(BT,{on:true,t:0,seed:(Date.now()&0xffff)|1,mons:[],bolts:[],fx:[],shots:[],haz:[],drops:[],kills:0,gi:0,hp:BT.maxHp,invul:0,roll:0,rollCd:0,atkCd:0,down:0,shake:0,flash:0,
-    wave:0,wState:"break",wT:1.5,q:[],qi:0,spT:0,hzT:0,hzI:0,vlT:0,sol:0,gas:0,banner:"",bannerT:0,win:false});
+  btReset(false);BT.seed=(Date.now()&0xffff)|1;
   toast("⚔ 연습 전투 시작! 이동 WASD · 구르기 Space(잠깐 무적) · 자동 공격 · 빨간 원은 피하기 · B 로 끝내기",4800);
 }
+// 내 쓰러짐 상태는 서버(raid/bt/dn)에도 적어 팀원이 알아보고 살려 줄 수 있게 한다
+const btRaidBase=()=>`${raidPath()}/bt`;
 function btHurt(amt){
   if(BT.invul>0||BT.roll>0||BT.down>0)return false;
+  if(BT.raidMode&&curWin)return false;   // 장치 창을 쓰는 동안은 맞지 않는다
   BT.hp=Math.max(0,BT.hp-amt);BT.invul=BT_CFG.hurtInvul;BT.shake=.18;BT.flash=.25;
   BT.fx.push({x:P.x,y:P.y-18,t:0,txt:"-"+amt,col:"#ff5a4a"});
-  if(BT.hp<=0){BT.down=BT_CFG.downT;P.moving=false;BT.fx.push({x:P.x,y:P.y-30,t:0,txt:"쓰러졌어요!",col:"#ffe08a"})}
+  if(BT.hp<=0){
+    const solo=BT.raidMode?liveMem(NET.raid||{}).length<=1:true;BT.down=solo?BT_CFG.downT:BT_CFG.downT*2;P.moving=false;
+    BT.fx.push({x:P.x,y:P.y-30,t:0,txt:"쓰러졌어요!",col:"#ffe08a"});
+    if(BT.raidMode&&NET.ok){BT.dnAt=NET.be.now();NET.be.set(`${btRaidBase()}/dn/${NET.uid}`,BT.dnAt);if(!solo)toast("🆘 쓰러졌어요! 팀원이 가까이 오면 일어나요.",3000)}
+  }
   return true;
+}
+function btStandUp(msg){
+  BT.hp=2;BT.invul=2;BT.down=0;BT.fx.push({x:P.x,y:P.y-26,t:0,txt:msg||"다시 일어났다!",col:"#8ee08e"});
+  if(BT.raidMode&&NET.ok)NET.be.remove(`${btRaidBase()}/dn/${NET.uid}`);
 }
 function btRoll(){
   if(!BT.on||BT.down>0||BT.roll>0||BT.rollCd>0||busy())return;
@@ -1849,27 +1876,109 @@ function btRoll(){
   const L=Math.hypot(ax,ay)||1;BT.rdx=ax/L;BT.rdy=ay/L;BT.roll=BT_CFG.rollT;BT.rollCd=BT_CFG.rollCd;
   for(let i=0;i<5;i++)BT.fx.push({x:P.x-BT.rdx*i*3,y:P.y-2,t:0,dust:1});
 }
+// 드롭: 연습 전투는 자유롭게, 레이드 전투는 단계에 맞는 것만(1단계 용질, 3단계 기체 캡슐) 레이드마다 개수 제한이 있다.
 function btDrop(m){
-  const r=mulberry(BT.seed*31+m.id*977)();
+  const r=mulberry(BT.seed*31+m.n*977)();
+  if(BT.raidMode){
+    if(BT.stage==="p1"&&m.k!=="e"&&r<.4&&BT.capSol<BT_CFG.capSol){BT.capSol++;BT.drops.push({x:m.x,y:m.y,k:"sol",t:0})}
+    else if(BT.stage==="p3"&&(m.k==="e"||(m.k==="w"&&r<.5))&&BT.capGas<BT_CFG.capGas){BT.capGas++;BT.drops.push({x:m.x,y:m.y,k:"gas",t:0})}
+    return;
+  }
   if(m.k==="e"){BT.drops.push({x:m.x-4,y:m.y,k:"sol",t:0},{x:m.x+4,y:m.y,k:"gas",t:0},{x:m.x,y:m.y+4,k:"gas",t:0})}
   else if(m.k==="w"){if(r<.5)BT.drops.push({x:m.x,y:m.y,k:"gas",t:0})}
   else if(r<.35)BT.drops.push({x:m.x,y:m.y,k:"sol",t:0});
 }
+// 주운 드롭을 실제 레이드에 반영한다
+function btApplyDrop(d){
+  if(!BT.raidMode){if(d.k==="sol")BT.sol++;else BT.gas++;return}
+  if(d.k==="sol"){BT.sol++;give(BT.sol%3===0?"salt":"sugar",1);return}
+  // 기체 캡슐: 3단계에서만, 내 보유 캡슐(p3/sup)에 하나 더한다
+  BT.gas++;const r=NET.raid,s=r&&r.p3&&r.p3.sup&&r.p3.sup[NET.uid];
+  if(r&&r.st==="p3"&&s){const g_=G3[(BT.gas+BT.t|0)%3],nx={n2:s.n2|0,o2:s.o2|0,he:s.he|0};nx[g_]++;NET.be.set(`${raidPath()}/p3/sup/${NET.uid}`,nx);BT.fx.push({x:P.x,y:P.y-34,t:0,txt:"+"+GAS.find(g=>g[0]===g_)[1].split(" ")[0],col:"#b8e8ff"})}
+}
+// ----- 레이드와 연결: 참가 중이면 자동으로 켜고, 단계가 바뀌면 전투를 새로 시작한다 -----
+function btRaidSync(){
+  const r=NET.raid,active=BT.enabled&&scene==="plaza"&&NET.ok&&NET.be&&r&&isMem(r)&&(r.st==="p1"||r.st==="p2"||r.st==="p3");
+  if(!active){
+    if(BT.raidMode){
+      if(BT.down>0&&NET.ok&&NET.be&&NET.raid)NET.be.remove(`${btRaidBase()}/dn/${NET.uid}`);
+      BT.on=false;BT.raidMode=false;BT.stage="";
+    }
+    return false;
+  }
+  if(!BT.raidMode||BT.rseq!==r.seq){
+    btReset(true);BT.rseq=r.seq;BT.seed=(Math.abs(r.seq)%65536)|1;
+    toast("⚔ 레이드 전투! WASD 이동 · Space 구르기 · 자동 공격 · R 장치 창(열려 있는 동안은 안전) · 빨간 원은 피하기",5200);
+  }
+  if(BT.stage!==r.st){
+    BT.stage=r.st;BT.nj=0;BT.nh=0;BT.nv=0;
+    for(const m of BT.mons)for(let k=0;k<5;k++)BT.fx.push({x:m.x,y:m.y-4,t:0,vx:(Math.random()-.5)*60,vy:-20-Math.random()*40,pop:1});
+    BT.mons.length=0;BT.haz.length=0;BT.shots.length=0;BT.drops.length=0;BT.bolts.length=0;
+    btSay(BT_STG[r.st].name,2.6);
+  }
+  return true;
+}
+// 레이드 전투의 출현·장판·거품: 모두 단계 시작 시각(r.t0)부터 흐른 서버 시간 e 로 정해진다(모든 참가자가 같은 것을 본다).
+function btRaidSpawn(r){
+  const C=BT_CFG,cfg=BT_STG[r.st],si=BT_STG_NO[r.st],N=Math.max(1,Math.min(RAID_MAX,r.N|0||1)),e=(NET.be.now()-r.t0)/1000;
+  const gap=cfg.gap/(.75+.25*N),K=(r.bt&&r.bt.k)||{};
+  // 다른 사람이 이미 처치한 몬스터는 내 화면에서도 사라진다(드롭은 처치한 사람만)
+  for(let i=BT.mons.length-1;i>=0;i--){const m=BT.mons[i];if(m.key&&K[m.key]&&K[m.key]!==NET.uid){for(let k=0;k<6;k++)BT.fx.push({x:m.x,y:m.y-4,t:0,vx:(Math.random()-.5)*60,vy:-20-Math.random()*40,pop:1});BT.mons.splice(i,1)}}
+  for(;;){
+    const tj=cfg.first+BT.nj*gap;if(tj>e)break;
+    const key=r.st+BT.nj;
+    if(e-tj<15&&!K[key]&&BT.mons.length<C.maxAlive){const k=cfg.mix[BT.nj%cfg.mix.length],[x,y]=btSpawnPos(si*100+BT.nj);BT.mons.push({id:BT.nj,key,n:si*100+BT.nj,k,x,y,hp:BT_KIND[k].hp,hit:0,ph:BT.nj*1.7})}
+    BT.nj++;
+  }
+  if(cfg.hz){
+    for(;;){
+      const ht=cfg.hzFirst+BT.nh*cfg.hz;if(ht>e)break;
+      const age=e-ht;
+      if(age<1.3){const c=1+(N>=4?1:0)+(N>=7?1:0);for(let q=0;q<c;q++){const rnd=mulberry(BT.seed*53+(si*50+BT.nh)*7+q);let x=BT_GOLEM[0]+(rnd()-.5)*340,y=BT_GOLEM[1]+20+rnd()*150;
+        if(blockedPlaza(Math.floor(x/16),Math.floor(y/16))){x=BT_GOLEM[0];y=BT_GOLEM[1]+90}BT.haz.push({x,y,t:age,hit:false})}}
+      BT.nh++;
+    }
+  }
+  if(cfg.vl){
+    for(;;){
+      const vt=cfg.vl*(BT.nv+.8);if(vt>e)break;
+      const age=e-vt;
+      if(age<2.2){const n=12,off=BT.nv*.37;for(let i=0;i<n;i++){const a=off+i/n*6.2832,vx=Math.cos(a)*C.shotSpd,vy=Math.sin(a)*C.shotSpd;BT.shots.push({x:BT_GOLEM[0]+vx*age,y:BT_GOLEM[1]+10+vy*age,vx,vy,life:2.6-age})}if(age<.5){btSay("골렘이 거품을 뿜어요!",1.2);BT.shake=.12}}
+      BT.nv++;
+    }
+  }
+}
+// 쓰러진 팀원 살려 주기: 가까이 서 있으면 게이지가 차고, 다 차면 서버(raid/bt/rv)에 적는다. 쓰러진 사람은 그걸 보고 일어난다.
+function btRevive(r,dt){
+  const dn=(r.bt&&r.bt.dn)||{},rv=(r.bt&&r.bt.rv)||{};
+  if(BT.down>0&&typeof rv[NET.uid]==="number"&&rv[NET.uid]>BT.dnAt){btStandUp("팀원이 일으켜 줬어요!");return}
+  if(BT.down>0)return;
+  for(const u in dn){
+    if(u===NET.uid)continue;const o=NET.remote[u];if(!o||typeof dn[u]!=="number"){delete BT.rvT[u];continue}
+    if(typeof rv[u]==="number"&&rv[u]>dn[u]){delete BT.rvT[u];continue}
+    if(Math.hypot(o.x-P.x,o.y-P.y)<BT_CFG.reviveR){BT.rvT[u]=(BT.rvT[u]||0)+dt;if(BT.rvT[u]>=BT_CFG.reviveT){NET.be.set(`${btRaidBase()}/rv/${u}`,NET.be.now());delete BT.rvT[u];BT.fx.push({x:o.x,y:o.y-26,t:0,txt:"살렸다!",col:"#8ee08e"})}}
+    else delete BT.rvT[u];
+  }
+}
 function btUpdate(dt){
+  const rm=btRaidSync();
   if(!BT.on)return;
-  if(scene!=="plaza"){BT.on=false;return}
-  if(busy())return;   // 창·대화가 열려 있으면 멈춘다
+  if(scene!=="plaza"){BT.on=false;BT.raidMode=false;return}
+  // 연습 전투는 창·대화가 열리면 멈추지만, 레이드 전투는 서버 시각으로 계속 흐른다(창이 열려 있는 동안은 안전)
+  if(rm){if(dl||fade.dir!==0||!started)return}else if(busy())return;
   const C=BT_CFG;BT.t+=dt;
   BT.invul=Math.max(0,BT.invul-dt);BT.rollCd=Math.max(0,BT.rollCd-dt);BT.atkCd-=dt;BT.shake=Math.max(0,BT.shake-dt);BT.flash=Math.max(0,BT.flash-dt);BT.bannerT=Math.max(0,BT.bannerT-dt);
+  if(rm){const open=!!curWin;if(BT.winOpen&&!open)BT.invul=Math.max(BT.invul,1.2);BT.winOpen=open}   // 창을 닫은 직후 잠깐 무적
   // 구르기: 짧게 빠르게 이동(벽은 통과 못함)
   if(BT.roll>0){
     const s=C.rollSpd*dt;let nx=P.x+BT.rdx*s;if(!boxHit(nx,P.y))P.x=nx;let ny=P.y+BT.rdy*s;if(!boxHit(P.x,ny))P.y=ny;
     BT.roll-=dt;if(Math.random()<.5)BT.fx.push({x:P.x,y:P.y-1,t:0,dust:1});
   }
-  // 쓰러짐: 잠시 뒤 체력 2로 일어난다(혼자라 스스로 일어남. 협동 단계에서 팀원이 일으켜 주는 방식으로 바뀜)
-  if(BT.down>0){BT.down-=dt;if(BT.down<=0){BT.hp=2;BT.invul=2;BT.fx.push({x:P.x,y:P.y-26,t:0,txt:"다시 일어났다!",col:"#8ee08e"})}}
-  // ----- 웨이브 진행 -----
-  if(!BT.win){
+  // 쓰러짐: 시간이 지나면 스스로 일어난다(팀원이 살려 주면 더 빨리)
+  if(BT.down>0){BT.down-=dt;if(BT.down<=0)btStandUp()}
+  if(rm){btRaidSpawn(NET.raid);btRevive(NET.raid,dt)}
+  // ----- 연습 전투 웨이브 진행 -----
+  if(!rm&&!BT.win){
     if(BT.wState==="break"){
       BT.wT-=dt;
       if(BT.wT<=0){
@@ -1881,7 +1990,7 @@ function btUpdate(dt){
       const W=BT_WAVES[BT.wave-1];
       BT.spT-=dt;
       if(BT.qi<BT.q.length&&BT.spT<=0&&BT.mons.length<C.maxAlive){
-        const k=BT.q[BT.qi++],[x,y]=btSpawnPos(BT.gi),K=BT_KIND[k];BT.mons.push({id:BT.gi++,k,x,y,hp:K.hp,hit:0,ph:BT.gi*1.7});BT.spT=W.gap;
+        const k=BT.q[BT.qi++],[x,y]=btSpawnPos(BT.gi),K=BT_KIND[k];BT.mons.push({id:BT.gi,n:BT.gi,k,x,y,hp:K.hp,hit:0,ph:BT.gi*1.7});BT.gi++;BT.spT=W.gap;
       }
       // 골렘 장판: 빨간 원이 뜨고 잠시 뒤 증기가 터진다. 주기마다 내 근처에 생긴다.
       if(W.hz){BT.hzT-=dt;if(BT.hzT<=0){BT.hzT=W.hz;const r=mulberry(BT.seed*53+BT.hzI++*7);BT.haz.push({x:P.x+(r()-.5)*44,y:P.y+(r()-.5)*36,t:0,hit:false})}}
@@ -1908,7 +2017,11 @@ function btUpdate(dt){
   // 몬스터: 플레이어 쪽으로 이동, 서로 밀어냄, 닿으면 피해
   for(let i=BT.mons.length-1;i>=0;i--){
     const m=BT.mons[i],K=BT_KIND[m.k];m.hit=Math.max(0,m.hit-dt);
-    if(m.hp<=0){BT.kills++;btDrop(m);for(let k=0;k<(m.k==="e"?14:7);k++)BT.fx.push({x:m.x,y:m.y-4,t:0,vx:(Math.random()-.5)*60,vy:-20-Math.random()*40,pop:1});BT.mons.splice(i,1);continue}
+    if(m.hp<=0){
+      BT.kills++;btDrop(m);for(let k=0;k<(m.k==="e"?14:7);k++)BT.fx.push({x:m.x,y:m.y-4,t:0,vx:(Math.random()-.5)*60,vy:-20-Math.random()*40,pop:1});
+      if(rm&&m.key&&NET.ok)NET.be.set(`${btRaidBase()}/k/${m.key}`,NET.uid);   // 처치를 서버에 적어 다른 참가자 화면에서도 사라지게 한다
+      BT.mons.splice(i,1);continue;
+    }
     if(BT.down>0)continue;
     const dx=P.x-m.x,dy=P.y-m.y,d=Math.hypot(dx,dy)||1;let vx=dx/d*K.spd,vy=dy/d*K.spd;
     if(m.k==="w"){const w=Math.sin(BT.t*5+m.ph)*26;vx+=-dy/d*w;vy+=dx/d*w}   // 증기 쪽은 구불구불 다가온다
@@ -1939,7 +2052,7 @@ function btUpdate(dt){
   for(let i=BT.drops.length-1;i>=0;i--){
     const d=BT.drops[i];d.t+=dt;const dx=P.x-d.x,dy=P.y-4-d.y,dd=Math.hypot(dx,dy);
     if(dd<40&&BT.down<=0){const s=Math.min(1,dt*6);d.x+=dx*s;d.y+=dy*s}
-    if(dd<8){if(d.k==="sol")BT.sol++;else BT.gas++;BT.fx.push({x:P.x,y:P.y-22,t:0,txt:d.k==="sol"?"+용질":"+기체 캡슐",col:d.k==="sol"?"#ffe08a":"#b8e8ff"});BT.drops.splice(i,1);continue}
+    if(dd<8){btApplyDrop(d);if(!BT.raidMode)BT.fx.push({x:P.x,y:P.y-22,t:0,txt:d.k==="sol"?"+용질":"+기체 캡슐",col:d.k==="sol"?"#ffe08a":"#b8e8ff"});else if(d.k==="sol")BT.fx.push({x:P.x,y:P.y-22,t:0,txt:"+"+(BT.sol%3===0?"소금":"설탕"),col:"#ffe08a"});BT.drops.splice(i,1);continue}
     if(d.t>20)BT.drops.splice(i,1);
   }
   // 효과
@@ -1968,6 +2081,13 @@ function btDraw(dr){
       else{btBlob(x,y,3,3,"rgba(160,225,255,.95)");R(x-1,y-2,1,1,"#fff")}
     }
   }]);
+  // 쓰러진 팀원(레이드 전투): 몸 위에 표시와 살리는 중의 게이지
+  if(BT.raidMode&&NET.raid&&NET.raid.bt&&NET.raid.bt.dn){
+    for(const u in NET.raid.bt.dn){if(u===NET.uid)continue;const o=NET.remote[u];if(!o)continue;
+      dr.push([o.y+2,()=>{const x=Math.round(o.x),y=Math.round(o.y),p=clamp((BT.rvT[u]||0)/BT_CFG.reviveT,0,1),b=Math.round(Math.sin(time*6)*1);
+        R(x-9,y-3,18,5,"rgba(60,40,70,.55)");R(x-2,y-30+b,4,9,"#ff5a6a");R(x-2,y-19+b,4,3,"#ff5a6a");   // 느낌표
+        R(x-10,y-38,20,3,"rgba(0,0,0,.55)");R(x-10,y-38,Math.round(20*p),3,"#8ee08e")}])}
+  }
   for(const m of BT.mons)dr.push([m.y,()=>{
     const hit=m.hit>0,bob=Math.round(Math.sin(time*6+m.ph)*1),x=Math.round(m.x),y=Math.round(m.y)+bob;
     if(m.k==="s"){   // 증기 거품
@@ -1999,12 +2119,15 @@ function btOverlay(){
   if(BT.flash>0){const a=BT.flash/.25*.28,gr=ctx.createRadialGradient(W/2,H/2,H*.35,W/2,H/2,H*.85);gr.addColorStop(0,"rgba(255,60,40,0)");gr.addColorStop(1,`rgba(255,60,40,${a.toFixed(2)})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H)}
   ctx.textAlign="center";ctx.font=`bold 15px ${FONT}`;ctx.lineJoin="round";
   for(const f of BT.fx){if(!f.txt)continue;const sx=(f.x-cam.x)*SC,sy=(f.y-cam.y)*SC-f.t*40;ctx.globalAlpha=Math.max(0,1-f.t/.9);ctx.lineWidth=4;ctx.strokeStyle="rgba(40,25,20,.9)";ctx.strokeText(f.txt,sx,sy);ctx.fillStyle=f.col;ctx.fillText(f.txt,sx,sy);ctx.globalAlpha=1}
-  // 웨이브 표시(위 가운데)와 안내 문구
+  // 단계·웨이브 표시(위 가운데)와 안내 문구
   ctx.font=`bold 17px ${FONT}`;ctx.lineWidth=4;ctx.strokeStyle="rgba(40,25,20,.9)";ctx.fillStyle="#fff7d6";
-  const left=BT.win?0:BT.mons.length+Math.max(0,BT.q.length-BT.qi),wt=BT.win?"🍲 레이드 전투 승리!":BT.wState==="break"&&BT.wave===0?"곧 시작해요…":`⚔ 웨이브 ${BT.wave}/${BT_WAVES.length}${BT.wState==="fight"?` · 남은 적 ${left}`:""}`;
+  let wt;
+  if(BT.raidMode){const sh=BT.winOpen?" · 🛡 장치 창 사용 중(안전)":"";wt=`⚔ ${(BT_STG[BT.stage]||{}).name||""} · 남은 적 ${BT.mons.length} · R 장치 창${sh}`}
+  else{const left=BT.win?0:BT.mons.length+Math.max(0,BT.q.length-BT.qi);wt=BT.win?"🍲 레이드 전투 승리!":BT.wState==="break"&&BT.wave===0?"곧 시작해요…":`⚔ 웨이브 ${BT.wave}/${BT_WAVES.length}${BT.wState==="fight"?` · 남은 적 ${left}`:""}`}
   ctx.strokeText(wt,W/2,128);ctx.fillText(wt,W/2,128);
   if(BT.bannerT>0){ctx.globalAlpha=Math.min(1,BT.bannerT/.5);ctx.font=`bold 30px ${FONT}`;ctx.lineWidth=6;ctx.strokeText(BT.banner,W/2,172);ctx.fillStyle="#ffe08a";ctx.fillText(BT.banner,W/2,172);ctx.globalAlpha=1}
-  if(BT.win){ctx.font=`bold 16px ${FONT}`;ctx.fillStyle="#fff7d6";ctx.lineWidth=4;const l=`처치 ${BT.kills}마리 · ${Math.floor(BT.t)}초 · 용질 ${BT.sol} · 기체 캡슐 ${BT.gas}   (B 로 끝내기)`;ctx.strokeText(l,W/2,204);ctx.fillText(l,W/2,204)}
+  if(BT.win&&!BT.raidMode){ctx.font=`bold 16px ${FONT}`;ctx.fillStyle="#fff7d6";ctx.lineWidth=4;const l=`처치 ${BT.kills}마리 · ${Math.floor(BT.t)}초 · 용질 ${BT.sol} · 기체 캡슐 ${BT.gas}   (B 로 끝내기)`;ctx.strokeText(l,W/2,204);ctx.fillText(l,W/2,204)}
+  if(BT.raidMode&&BT.down>0){ctx.font=`bold 20px ${FONT}`;ctx.fillStyle="#ffe08a";ctx.lineWidth=5;const l="쓰러졌어요… 팀원이 가까이 서면 일어나요";ctx.strokeText(l,W/2,300);ctx.fillText(l,W/2,300)}
   // 체력(하트), 구르기 준비, 처치·드롭
   ctx.textAlign="left";ctx.font=`bold 22px ${FONT}`;
   for(let i=0;i<BT.maxHp;i++){ctx.fillStyle=i<BT.hp?"#ff5a6a":"rgba(60,40,50,.55)";ctx.strokeStyle="rgba(40,25,20,.9)";ctx.lineWidth=3;ctx.strokeText("♥",24+i*28,516);ctx.fillText("♥",24+i*28,516)}
@@ -2035,6 +2158,9 @@ function gmin(){return scene==="plaza"&&NET.ok&&NET.be?plazaMin():S.min}
 function plazaKey(code){
   if(code==="KeyB"&&BT.enabled){btToggle();return true}
   if(code==="Space"&&BT.on){btRoll();return true}   // 전투 중 Space 는 구르기(상호작용은 E)
+  if(code==="KeyR"&&BT.enabled&&BT.raidMode&&NET.raid){   // 레이드 전투 중 장치 창 열기/닫기
+    if(curWin&&curWin.raid)closeWin();else if(!curWin&&!dl)winRaid();
+    return true}
   const m=/^Digit([1-8])$/.exec(code);if(m){plazaEmote(+m[1]);return true}return false}
 function askNick(cb){
   openWin("🌐 광장 이름 정하기",b=>{
@@ -2431,7 +2557,7 @@ function raidOnState(r){
   if(r.st==="p1"||r.st==="p2"||r.st==="p3"){
     RD.seen=r.seq;   // 진행 중인 레이드를 내가 직접 본 적이 있는지(보상 검증용)
     RD.add={u:0,a:0};RD.v3={n2:0,o2:0,he:0};
-    if(!dl&&(!curWin||curWin.raid)){if(curWin)refreshWin();else winRaid()}
+    if(!dl&&(!curWin||curWin.raid)){if(curWin)refreshWin();else if(!BT.enabled)winRaid()}   // 전투 모드에서는 장치 창이 저절로 열리지 않는다(R 로 연다)
   }else if(r.st==="won"||r.st==="lost"){
     if(RD.done!==r.seq){
       RD.done=r.seq;
