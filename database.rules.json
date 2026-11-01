@@ -10,7 +10,7 @@
           "n": { ".validate": "newData.isString() && newData.val().length <= 8" },
           "x": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000" },
           "y": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 800" },
-          "t": { ".validate": "newData.isNumber()" },
+          "t": { ".validate": "newData.isNumber() && newData.val() <= now + 60000" },
           "j": { ".validate": "newData.isNumber()" },
           "s": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 4" },
           "d": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3" },
@@ -22,7 +22,16 @@
       "raid": {
         ".read": "auth != null",
         ".write": "auth != null && $ch.matches(/^c[1-5]$/)",
-        "st": { ".validate": "newData.isString() && newData.val().matches(/^(lobby|p1|p2|p3|won|lost)$/)" }
+        "st": { ".validate": "newData.isString() && newData.val().matches(/^(lobby|p1|p2|p3|won|lost)$/)" },
+        "seq": { ".validate": "newData.isNumber() && newData.val() > 0" },
+        "t0": { ".validate": "newData.isNumber() && newData.val() > 0" },
+        "start": { ".validate": "newData.isNumber() && newData.val() > 0" },
+        "N": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 8" },
+        "why": { ".validate": "newData.isString() && newData.val().length <= 200 && !newData.val().matches(/[<>&]/)" },
+        "mem": { "$pid": {
+          "n": { ".validate": "newData.isString() && newData.val().length <= 8 && !newData.val().matches(/[<>&\"'`]/)" },
+          "$other": { ".validate": false }
+        } }
       }
     } }
   }
